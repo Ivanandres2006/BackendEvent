@@ -1,7 +1,11 @@
 package com.example.dbeventservice.model;
 
+import com.example.dbeventservice.model.Enum.ChatType;
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Getter
@@ -20,6 +24,23 @@ public class ChatRoom {
 
     @ManyToOne
     private User seller;
+
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private ChatType type;
+
+
+    private Long eventId; // To associate DIRECT and PROMOTER_GROUP with events
+
+    @ManyToMany(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.PERSIST})
+    @JoinTable(name = "chatroom_participants",
+            joinColumns = @JoinColumn(name = "chatroom_id"),
+            inverseJoinColumns = @JoinColumn(name = "user_id"))
+    @Builder.Default
+    private Set<User> participants = new HashSet<>();
+
+
+
 
     @ManyToOne
     private ResalePost resalePost;

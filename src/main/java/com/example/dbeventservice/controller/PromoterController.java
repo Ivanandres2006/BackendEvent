@@ -105,10 +105,7 @@ public class PromoterController {
 
         User user = optionalUser.get();
 
-        Promoter promoter = promoterService.getPromoterByUser(user)
-                .orElseGet(() -> promoterService.createPromoter(user));
-
-        PromoterEvent pe = promoterService.assignEventToPromoter(eventId, promoter);
+        PromoterEvent pe = promoterService.assignEventToPromoter(eventId, username);
         return ResponseEntity.ok(pe);
     }
 

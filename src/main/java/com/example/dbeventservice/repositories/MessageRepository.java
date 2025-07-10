@@ -10,4 +10,6 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     List<Message> findByChatRoomOrderByTimestampAsc(ChatRoom chatRoom);
 
     List<Message> findByChatRoomAndIsReadFalse(ChatRoom chatRoom);
+
+    List<Message> findByChatRoom(ChatRoom chatRoom);
 }

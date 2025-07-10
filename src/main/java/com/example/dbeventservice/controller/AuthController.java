@@ -2,7 +2,7 @@ package com.example.dbeventservice.controller;
 
 import com.example.dbeventservice.auth.jwt.JwtUtils;
 import com.example.dbeventservice.auth.jwt.UserDetailsImpl;
-import com.example.dbeventservice.model.Role;
+import com.example.dbeventservice.model.Enum.Role;
 import com.example.dbeventservice.model.User;
 import com.example.dbeventservice.repositories.UserRepository;
 import com.example.dbeventservice.service.AppleVerifierService;

@@ -10,6 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
 import java.nio.file.*;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -20,7 +21,7 @@ public class ImageUploadController {
     private String uploadDir;
 
     @PostMapping("/upload-image")
-    public ResponseEntity<String> uploadChatImage(
+    public ResponseEntity<Map<String, String>> uploadChatImage(
             @AuthenticationPrincipal UserDetailsImpl userDetails,
             @RequestParam("file") MultipartFile file
     ) {
@@ -37,10 +38,12 @@ public class ImageUploadController {
             Path filePath = uploadPath.resolve(filename);
             Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
-            return ResponseEntity.ok(filename);
+            return ResponseEntity.ok(Map.of("filename", filename));
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Failed to upload image");
+                    .body(Map.of("error", "Failed to upload image"));
         }
     }
+
+
 }

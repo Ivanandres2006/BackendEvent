@@ -56,7 +56,8 @@ public class WebSecurityConfig {
                                 "/auth/refresh",
                                 "/uploads/**",
                                 "/qr/**",
-                                "/api/payments/webhook"
+                                "/api/payments/webhook",
+                                "/api/chat/image/**"
                         ).permitAll()
                         .requestMatchers("/auth/validate").authenticated()
                         .anyRequest().authenticated()

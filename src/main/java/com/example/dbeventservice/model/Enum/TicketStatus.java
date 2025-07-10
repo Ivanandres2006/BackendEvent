@@ -1,4 +1,4 @@
-package com.example.dbeventservice.model;
+package com.example.dbeventservice.model.Enum;
 
 public enum TicketStatus {
     PENDING,

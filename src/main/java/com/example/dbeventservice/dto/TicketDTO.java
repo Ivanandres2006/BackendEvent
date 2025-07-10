@@ -1,7 +1,6 @@
 package com.example.dbeventservice.dto;
 
 import com.example.dbeventservice.model.Ticket;
-import com.example.dbeventservice.model.TicketStatus;
 import lombok.Getter;
 import lombok.Setter;
 

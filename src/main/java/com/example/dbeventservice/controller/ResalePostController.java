@@ -61,6 +61,14 @@ public class ResalePostController {
         return ResponseEntity.ok("Marked as sold");
     }
 
+    @GetMapping("/{postId}")
+    public ResponseEntity<?> getPostById(@PathVariable Long postId) {
+        return resalePostService.getPostById(postId)
+                .map(post -> ResponseEntity.ok(new ResalePostDTO(post)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+
     // DTO
     @Getter
     @Setter

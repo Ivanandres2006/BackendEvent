@@ -1,6 +1,6 @@
 package com.example.dbeventservice.model;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.example.dbeventservice.model.Enum.TicketStatus;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;

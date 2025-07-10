@@ -14,6 +14,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
         // ✅ Match the QR code output directory
         registry.addResourceHandler("/qr/**")
                 .addResourceLocations("file:./uploads/qr/");
+
+        registry.addResourceHandler("/api/chat/image/**")
+                .addResourceLocations("file:./chat-images/");
     }
+
+
 
 }

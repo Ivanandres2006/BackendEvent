@@ -1,6 +1,6 @@
 package com.example.dbeventservice.auth.jwt;
 
-import com.example.dbeventservice.model.Role;
+import com.example.dbeventservice.model.Enum.Role;
 import com.example.dbeventservice.model.User;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
@@ -9,7 +9,6 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 @Getter

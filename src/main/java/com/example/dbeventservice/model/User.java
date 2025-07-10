@@ -1,8 +1,10 @@
 package com.example.dbeventservice.model;
 
+import com.example.dbeventservice.model.Enum.Role;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Entity
 @Table(name = "users")
@@ -48,5 +50,23 @@ public class User {
     private String externalProvider; // e.g., "google" or "apple"
 
     @Column(unique = true)
-    private String externalId;       // unique id from the provider
+    private String externalId;
+
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof User)) return false;
+        User user = (User) o;
+        return Objects.equals(id, user.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
 }
+
+
+
+

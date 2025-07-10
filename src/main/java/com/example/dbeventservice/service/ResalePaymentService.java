@@ -1,13 +1,10 @@
 package com.example.dbeventservice.service;
 
 import com.example.dbeventservice.dto.PaymentIntentResponse;
-import com.example.dbeventservice.model.ResalePost;
-import com.example.dbeventservice.model.Ticket;
-import com.example.dbeventservice.model.TicketStatus;
-import com.example.dbeventservice.model.User;
-import com.example.dbeventservice.repositories.ResalePostRepository;
-import com.example.dbeventservice.repositories.TicketRepository;
-import com.example.dbeventservice.repositories.UserRepository;
+import com.example.dbeventservice.model.*;
+import com.example.dbeventservice.model.Enum.OfferStatus;
+import com.example.dbeventservice.model.Enum.TicketStatus;
+import com.example.dbeventservice.repositories.*;
 import com.example.dbeventservice.util.QRCodeGenerator;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
@@ -17,12 +14,14 @@ import com.stripe.model.PaymentIntent;
 import com.stripe.net.RequestOptions;
 import com.stripe.param.PaymentIntentCreateParams;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 @Service
 public class ResalePaymentService {
@@ -33,15 +32,23 @@ public class ResalePaymentService {
     private final ResalePostRepository resalePostRepository;
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
+    @Autowired
+    private ChatRoomRepository chatRoomRepository;
+
+    @Autowired
+    private CounterOfferRepository counterOfferRepository;
+
 
     public ResalePaymentService(
             ResalePostRepository resalePostRepository,
             TicketRepository ticketRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            CounterOfferRepository counterOfferRepository
     ) {
         this.resalePostRepository = resalePostRepository;
         this.ticketRepository = ticketRepository;
         this.userRepository = userRepository;
+        this.counterOfferRepository = counterOfferRepository;
     }
 
     @PostConstruct
@@ -58,21 +65,31 @@ public class ResalePaymentService {
         if (Objects.equals(post.getSeller().getId(), buyerId))
             throw new IllegalArgumentException("You cannot buy your own resale post");
 
-        // ✅ Create Stripe customer
+        // ✅ Find chat room
+        ChatRoom chatRoom = chatRoomRepository
+                .findByResalePostIdAndBuyerId(resalePostId, buyerId)
+                .orElseThrow(() -> new IllegalArgumentException("Chat room not found"));
+
+        // ✅ Check for accepted counteroffer
+        Optional<CounterOffer> accepted = counterOfferRepository
+                .findTopByChatRoomAndSenderIdAndStatusOrderByCreatedAtDesc(
+                        chatRoom, buyerId, OfferStatus.ACCEPTED
+                );
+
+        double finalPrice = accepted.map(CounterOffer::getAmount).orElse(post.getPrice());
+        long amount = (long) (finalPrice * 100); // in cents
+
+        // ✅ Stripe Customer
         Customer customer = Customer.create(new HashMap<>());
 
         EphemeralKey key = EphemeralKey.create(
                 Map.of("customer", customer.getId()),
                 RequestOptions.builder()
-                        .setStripeVersionOverride("2023-10-16") // ✅ required for PaymentSheet
+                        .setStripeVersionOverride("2023-10-16")
                         .build()
         );
 
-
-
         // ✅ Create PaymentIntent
-        long amount = (long) (post.getPrice() * 100); // convert to cents
-
         PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
                 .setAmount(amount)
                 .setCurrency("usd")

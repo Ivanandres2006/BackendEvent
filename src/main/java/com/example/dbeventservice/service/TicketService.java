@@ -2,12 +2,12 @@
 package com.example.dbeventservice.service;
 
 import com.example.dbeventservice.model.*;
+import com.example.dbeventservice.model.Enum.TicketStatus;
 import com.example.dbeventservice.repositories.*;
 import com.example.dbeventservice.util.QRCodeGenerator;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
-import com.stripe.model.PromotionCode;
 import com.stripe.param.PaymentIntentCreateParams;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -103,7 +103,7 @@ public class TicketService {
             // ✅ track referral if present
             if (ref != null && !ref.isBlank()) {
                 promoterRepository.findByReferralCode(ref).ifPresent(promoter -> {
-                    PromoterEvent pe = promoterService.assignEventToPromoter(eventId, promoter);
+                    PromoterEvent pe = promoterService.assignEventToPromoter(eventId, promoter.getUser().getUsername());
                     pe.setTicketsSold(pe.getTicketsSold() + 1);
                     promoterEventRepository.save(pe);
 
@@ -202,7 +202,7 @@ public class TicketService {
                 String ref = metadata.get("ref");
                 if (ref != null && !ref.isBlank()) {
                     promoterRepository.findByReferralCode(ref).ifPresent(promoter -> {
-                        PromoterEvent pe = promoterService.assignEventToPromoter(eventId, promoter);
+                        PromoterEvent pe = promoterService.assignEventToPromoter(eventId, promoter.getUser().getUsername());
                         pe.setTicketsSold(pe.getTicketsSold() + 1);
                         promoterEventRepository.save(pe);
 

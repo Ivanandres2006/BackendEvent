@@ -14,4 +14,7 @@ public class ChatRoomSummaryDTO {
     private String title;
     private String sellerName;
     private int unreadMessages;
+    private Long buyerId;
+    private Long eventId;
+    private String type;
 }

@@ -4,6 +4,7 @@ import com.example.dbeventservice.model.*;
 import com.example.dbeventservice.repositories.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 
@@ -22,6 +23,11 @@ public class PromoterService {
     @Autowired
     private EventRepository eventRepository;
 
+    @Autowired
+    private ChatService chatService;
+
+
+    @Transactional
     public Promoter createPromoter(User user) {
         Promoter promoter = new Promoter();
         promoter.setUser(user);
@@ -43,17 +49,43 @@ public class PromoterService {
         return promoterEventRepository.findByPromoter(promoter);
     }
 
-    public PromoterEvent assignEventToPromoter(Long eventId, Promoter promoter) {
-        Event event = eventRepository.findById(eventId).orElseThrow();
-        return promoterEventRepository.findByPromoterAndEvent(promoter, event)
+    @Transactional
+    public PromoterEvent assignEventToPromoter(Long eventId, String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        // ✅ Ensure the promoter exists
+        Promoter promoter = promoterRepository.findByUser(user)
                 .orElseGet(() -> {
-                    PromoterEvent pe = new PromoterEvent();
-                    pe.setPromoter(promoter);
-                    pe.setEvent(event);
-                    pe.setTicketsSold(0);
-                    return promoterEventRepository.save(pe);
+                    Promoter newPromoter = new Promoter();
+                    newPromoter.setUser(user);
+                    newPromoter.setReferralCode(user.getUsername().toLowerCase());
+                    return promoterRepository.save(newPromoter);
                 });
+
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new IllegalArgumentException("Event not found"));
+
+        System.out.println("🔁 Assigning promoter: " + user.getUsername());
+
+        System.out.println("🔁 Assigning promoter: " +
+                (promoter.getUser() != null ? promoter.getUser().getUsername() : "null user"));
+
+        PromoterEvent pe = promoterEventRepository.findByPromoterAndEvent(promoter, event)
+                .orElseGet(() -> {
+                    PromoterEvent newPe = new PromoterEvent();
+                    newPe.setPromoter(promoter);
+                    newPe.setEvent(event);
+                    newPe.setTicketsSold(0);
+                    return promoterEventRepository.save(newPe);
+                });
+
+        // ✅ Refresh participants in promoter group chat
+        chatService.refreshPromoterGroupParticipants(eventId);
+
+        return pe;
     }
+
 
     public List<PromoterEvent> getPromotersForEvent(Event event) {
         return promoterEventRepository.findByEvent(event);

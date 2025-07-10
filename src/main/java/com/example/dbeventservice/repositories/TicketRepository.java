@@ -1,7 +1,7 @@
 package com.example.dbeventservice.repositories;
 
 import com.example.dbeventservice.model.Ticket;
-import com.example.dbeventservice.model.TicketStatus;
+import com.example.dbeventservice.model.Enum.TicketStatus;
 import com.example.dbeventservice.model.User;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
