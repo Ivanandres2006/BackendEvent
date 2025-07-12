@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: event-backend
+    env: java
+    plan: free
+    buildCommand: "./mvnw clean package -DskipTests"
+    startCommand: "java -jar target/DB-eventService-0.0.1-SNAPSHOT.jar"
+    envVars:
+      - key: DATABASE_URL
+        fromEnvVar: DATABASE_URL
+      - key: DATABASE_USERNAME
+        fromEnvVar: DATABASE_USERNAME
+      - key: DATABASE_PASSWORD
+        fromEnvVar: DATABASE_PASSWORD
+      - key: EMAIL_USERNAME
+        fromEnvVar: EMAIL_USERNAME
+      - key: EMAIL_PASSWORD
+        fromEnvVar: EMAIL_PASSWORD
+      - key: JWT_SECRET
+        fromEnvVar: JWT_SECRET
+      - key: JWT_EXPIRATION_MS
+        fromEnvVar: JWT_EXPIRATION_MS
+      - key: STRIPE_SECRET_KEY
+        fromEnvVar: STRIPE_SECRET_KEY
+      - key: STRIPE_WEBHOOK_SECRET
+        fromEnvVar: STRIPE_WEBHOOK_SECRET
+      - key: TWILIO_SID
+        fromEnvVar: TWILIO_SID
+      - key: TWILIO_TOKEN
+        fromEnvVar: TWILIO_TOKEN
+      - key: TWILIO_PHONE
+        fromEnvVar: TWILIO_PHONE
