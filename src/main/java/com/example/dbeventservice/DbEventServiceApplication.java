@@ -9,7 +9,6 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 @SpringBootApplication
 @EntityScan(basePackages = "com.example.dbeventservice.model")
 @EnableJpaRepositories(basePackages = "com.example.dbeventservice.repositories")
-@EnableTransactionManagement
 public class DbEventServiceApplication {
 
     public static void main(String[] args) {
