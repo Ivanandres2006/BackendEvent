@@ -22,4 +22,9 @@ public class DbEventServiceApplication {
         System.out.println("🔍 JDBC URL in use: " + datasourceUrl);
     }
 
+    @PostConstruct
+    public void checkDbUrl() {
+        System.out.println("✅ Resolved DB URL: " + datasourceUrl);
+    }
+
 }
