@@ -14,8 +14,6 @@ public class DbEventServiceApplication {
     private String datasourceUrl;
 
     public static void main(String[] args) {
-        System.out.println("JDBC drivers: " + java.sql.DriverManager.getDrivers());
-        System.out.println("DATABASE_URL = " + System.getenv("JDBC_DATABASE_URL"));
         SpringApplication.run(DbEventServiceApplication.class, args);
     }
 
