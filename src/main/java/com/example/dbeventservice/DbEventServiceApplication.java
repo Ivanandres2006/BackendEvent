@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 @SpringBootApplication
-@EntityScan(basePackages = "com.example.dbeventservice.model")
+//@EntityScan(basePackages = "com.example.dbeventservice.model")
 @EnableJpaRepositories(basePackages = "com.example.dbeventservice.repositories")
 public class DbEventServiceApplication {
 
