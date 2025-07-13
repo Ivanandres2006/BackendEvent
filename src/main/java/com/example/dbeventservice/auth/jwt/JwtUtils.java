@@ -20,8 +20,11 @@ public class JwtUtils {
 
     private Key key;
 
+
+
     @PostConstruct
     public void init() {
+        System.out.println("🚨 jwtSecret = " + jwtSecret); // Should not be null or blank
         this.key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
 
