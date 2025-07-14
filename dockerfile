@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Copy everything
 COPY . .
-COPY .env .env
+
 
 # Install tini for better signal handling (optional but good practice)
 RUN apt-get update && apt-get install -y tini
