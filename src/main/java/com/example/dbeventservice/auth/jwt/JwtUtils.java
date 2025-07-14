@@ -25,6 +25,7 @@ public class JwtUtils {
     @PostConstruct
     public void init() {
         System.out.println("🚨 jwtSecret = " + jwtSecret); // Should not be null or blank
+        System.out.println("🚨 jwtExpirationMs = " + jwtExpirationMs); // Should not be
         this.key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
 
