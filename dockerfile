@@ -4,12 +4,12 @@ WORKDIR /app
 
 # Copy everything
 COPY . .
+COPY .env .env  # ✅ make sure .env is included in final image
 
 # Install tini for better signal handling (optional but good practice)
 RUN apt-get update && apt-get install -y tini
 
-# Copy and export environment variables from .env
-# CMD will explicitly source it at runtime
+# Build the app
 RUN chmod +x ./mvnw && ./mvnw clean package -DskipTests
 
 EXPOSE 8080
