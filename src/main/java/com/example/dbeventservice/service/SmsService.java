@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class SmsService {
 
-    @Value("${twilio.accountSid}")
+    @Value("${TWILIO_SID}")
     private String accountSid;
 
     @Value("${twilio.authToken}")
