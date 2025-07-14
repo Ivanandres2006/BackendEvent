@@ -2,14 +2,17 @@ FROM eclipse-temurin:17-jdk
 
 WORKDIR /app
 
-# Only copy what's needed
-COPY mvnw pom.xml ./
-COPY .mvn .mvn
-COPY src src
+# Copy everything
+COPY . .
 
-# Build the app
-RUN ./mvnw clean package -DskipTests
+# Install tini for better signal handling (optional but good practice)
+RUN apt-get update && apt-get install -y tini
+
+# Copy and export environment variables from .env
+# CMD will explicitly source it at runtime
+RUN chmod +x ./mvnw && ./mvnw clean package -DskipTests
 
 EXPOSE 8080
 
-CMD ["java", "-jar", "target/DB-eventService-0.0.1-SNAPSHOT.jar"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["/bin/sh", "-c", "set -a && . .env && exec java -jar target/DB-eventService-0.0.1-SNAPSHOT.jar"]
