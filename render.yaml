@@ -42,3 +42,7 @@ services:
         value: 5991cabbb2566186fa7b14283aba85d6
       - key: TWILIO_PHONE
         value: +16205318087
+
+      - key: JDBC_DRIVER
+        value: org.postgresql.Driver
+
