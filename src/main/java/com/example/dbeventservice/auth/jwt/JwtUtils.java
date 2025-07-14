@@ -12,10 +12,10 @@ import java.util.Date;
 @Component
 public class JwtUtils {
 
-    @Value("${dbeventservice.jwtSecret}")
+    @Value("${JWT_SECRET}")
     private String jwtSecret;
 
-    @Value("${dbeventservice.jwtExpirationMs}")
+    @Value("${JWT_EXPIRATION_MS}")
     private int jwtExpirationMs;
 
     private Key key;
