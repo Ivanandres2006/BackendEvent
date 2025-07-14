@@ -1,22 +1,22 @@
-FROM eclipse-temurin:17-jdk
+# ------------ Build Stage ------------
+FROM eclipse-temurin:17-jdk AS build
 
-# Use a working directory
 WORKDIR /app
-
-# Copy project files
 COPY . .
-
-# Optional: install tini for better signal handling (e.g. Docker stop)
-RUN apt-get update && apt-get install -y tini
-
-# Build app using Maven wrapper
 RUN chmod +x ./mvnw && ./mvnw clean package -DskipTests
 
-# Expose the application port
+# ------------ Runtime Stage ------------
+FROM eclipse-temurin:17-jdk
+
+WORKDIR /app
+
+# Install tini for graceful shutdown and clean up afterwards
+RUN apt-get update && apt-get install -y tini && rm -rf /var/lib/apt/lists/*
+
+# Copy only the built jar from the build stage
+COPY --from=build /app/target/DB-eventService-0.0.1-SNAPSHOT.jar ./app.jar
+
 EXPOSE 8080
 
-# Use tini to handle signals properly
 ENTRYPOINT ["/usr/bin/tini", "--"]
-
-# Launch the application (no .env loading)
-CMD ["java", "-jar", "target/DB-eventService-0.0.1-SNAPSHOT.jar"]
+CMD ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
