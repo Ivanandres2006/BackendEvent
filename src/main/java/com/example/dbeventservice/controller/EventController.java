@@ -193,6 +193,30 @@ public class EventController {
         ));
     }
 
+    @GetMapping("/rsvp-attending")
+    public ResponseEntity<List<Long>> getEventsUserRsvpedTo(@AuthenticationPrincipal UserDetailsImpl userDetails) {
+        String userEmail = userDetails.getEmail();
+
+        List<Event> events = eventRepository.findAll();
+        List<Long> attendingEventIds = new ArrayList<>();
+
+        for (Event event : events) {
+            if ("reunion".equalsIgnoreCase(event.getType())) {
+                for (ReunionGuest guest : event.getReunionGuests()) {
+                    if (guest.getEmail() != null &&
+                            guest.getEmail().equalsIgnoreCase(userEmail) &&
+                            guest.isAttending()) {
+                        attendingEventIds.add(event.getId());
+                        break;
+                    }
+                }
+            }
+        }
+
+        return ResponseEntity.ok(attendingEventIds);
+    }
+
+
     @PutMapping("/{eventId}/rsvp")
     public ResponseEntity<?> updateRsvpStatus(
             @AuthenticationPrincipal UserDetailsImpl userDetails,
