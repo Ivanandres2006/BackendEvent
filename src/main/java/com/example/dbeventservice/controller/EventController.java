@@ -211,7 +211,15 @@ public class EventController {
         for (ReunionGuest guest : guests) {
             if (guest.getEmail().equalsIgnoreCase(userEmail)) {
                 guest.setAttending(attending);
-                eventRepository.save(event);
+
+                if (attending) {
+                    // Also add user to event's attendees set
+                    Optional<User> optionalUser = userRepository.findByEmail(userEmail);
+                    optionalUser.ifPresent(user -> event.getAttendees().add(user));
+                }
+
+                reunionGuestRepository.save(guest); // Save guest directly
+                eventRepository.save(event);        // Save event with updated attendees
                 return ResponseEntity.ok("RSVP updated");
             }
         }
