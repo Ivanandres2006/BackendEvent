@@ -3,14 +3,8 @@ package com.example.dbeventservice.controller;
 import com.example.dbeventservice.auth.jwt.UserDetailsImpl;
 import com.example.dbeventservice.dto.EventAnalyticsDTO;
 import com.example.dbeventservice.dto.PaginatedResponse;
-import com.example.dbeventservice.model.Event;
-import com.example.dbeventservice.model.Ticket;
-import com.example.dbeventservice.model.TicketTier;
-import com.example.dbeventservice.model.User;
-import com.example.dbeventservice.repositories.EventRepository;
-import com.example.dbeventservice.repositories.TicketRepository;
-import com.example.dbeventservice.repositories.TicketTierRepository;
-import com.example.dbeventservice.repositories.UserRepository;
+import com.example.dbeventservice.model.*;
+import com.example.dbeventservice.repositories.*;
 import lombok.*;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +35,10 @@ public class EventController {
 
     @Autowired
     TicketRepository ticketRepository;
+
+    @Autowired
+    private ReunionGuestRepository reunionGuestRepository;
+
 
 
     @PostMapping("/upload-image")
@@ -142,6 +140,25 @@ public class EventController {
         event.setCountry(req.country);
         event.setLatitude(req.latitude);
         event.setLongitude(req.longitude);
+        event.setType(req.type != null ? req.type : "event");
+
+        if ("reunion".equalsIgnoreCase(event.getType())) {
+            event.setBudgetGoal(req.budgetGoal);
+            event.setBudgetPurpose(req.budgetPurpose);
+            event.setZelleInfo(req.zelleInfo);
+
+            if (req.guests != null) {
+                for (ReunionGuestDTO g : req.guests) {
+                    ReunionGuest guest = new ReunionGuest();
+                    guest.setName(g.name);
+                    guest.setEmail(g.email);
+                    guest.setPaid(g.paid);
+                    guest.setEvent(event);
+                    reunionGuestRepository.save(guest);
+                    event.getReunionGuests().add(guest);
+                }
+            }
+        }
 
 
         if (req.ticketTiers != null && !req.ticketTiers.isEmpty()) {
@@ -174,6 +191,32 @@ public class EventController {
                 "id", event.getId(),
                 "createdByUsername", user.getUsername() // 👈 Add this
         ));
+    }
+
+    @PutMapping("/{eventId}/rsvp")
+    public ResponseEntity<?> updateRsvpStatus(
+            @AuthenticationPrincipal UserDetailsImpl userDetails,
+            @PathVariable Long eventId,
+            @RequestBody Map<String, Boolean> body
+    ) {
+        String userEmail = userDetails.getEmail();
+        boolean attending = body.getOrDefault("attending", false);
+
+        Optional<Event> optionalEvent = eventRepository.findById(eventId);
+        if (optionalEvent.isEmpty()) return ResponseEntity.notFound().build();
+
+        Event event = optionalEvent.get();
+        List<ReunionGuest> guests = event.getReunionGuests();
+
+        for (ReunionGuest guest : guests) {
+            if (guest.getEmail().equalsIgnoreCase(userEmail)) {
+                guest.setAttending(attending);
+                eventRepository.save(event);
+                return ResponseEntity.ok("RSVP updated");
+            }
+        }
+
+        return ResponseEntity.status(403).body("Not a guest");
     }
 
 
@@ -313,5 +356,20 @@ public class EventController {
         public LocalDateTime dateTime;
         public String imageUrl;
         public List<TicketTierRequest> ticketTiers;
+        public String type;
+
+        public String budgetPurpose;
+        public Double budgetGoal;
+        public String zelleInfo;
+        public List<ReunionGuestDTO> guests;
     }
+
+    @Getter
+    @Setter
+    static class ReunionGuestDTO {
+        public String name;
+        public String email;
+        public boolean paid;
+    }
+
 }

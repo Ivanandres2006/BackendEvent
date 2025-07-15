@@ -21,6 +21,9 @@ public class Event {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false)
+    private String type = "event"; // "event" or "reunion"
+
     private String title;
     private String description;
     private String location;
@@ -36,9 +39,13 @@ public class Event {
     private Double price; // ✅ Base/default price (optional)
     private Integer availableTickets; // ✅ Aggregate available quantity
 
+
+
     @ManyToOne
     @JoinColumn(name = "created_by_id")
     private User createdBy;
+
+
 
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TicketTier> ticketTiers = new ArrayList<>();
@@ -66,6 +73,14 @@ public class Event {
         return createdBy != null ? createdBy.getUsername() : null;
     }
 
+    // 🧾 Only used for reunions
+    private String budgetPurpose;
+    private Double budgetGoal;
+    private String zelleInfo;
+
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ReunionGuest> reunionGuests = new ArrayList<>();
+
 
     public void updateAggregateInfoFromTiers() {
         // Safely sum all available quantities (default to 0 if null)
@@ -79,5 +94,25 @@ public class Event {
                 .mapToDouble(TicketTier::getPrice)
                 .min()
                 .orElse(0.0); // Default to 0.0 if no valid prices
+    }
+
+    @JsonProperty("budgetGoal")
+    public Double getBudgetGoal() {
+        return budgetGoal;
+    }
+
+    @JsonProperty("budgetPurpose")
+    public String getBudgetPurpose() {
+        return budgetPurpose;
+    }
+
+    @JsonProperty("zelleInfo")
+    public String getZelleInfo() {
+        return zelleInfo;
+    }
+
+    @JsonProperty("reunionGuests")
+    public List<ReunionGuest> getGuests() {
+        return reunionGuests;
     }
 }
