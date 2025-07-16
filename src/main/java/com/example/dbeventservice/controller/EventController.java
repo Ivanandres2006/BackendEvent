@@ -140,12 +140,13 @@ public class EventController {
         event.setCountry(req.country);
         event.setLatitude(req.latitude);
         event.setLongitude(req.longitude);
+        event.setZelleEmail(req.zelleEmail);
+        event.setZellePhone(req.zellePhone);
         event.setType(req.type != null ? req.type : "event");
 
         if ("reunion".equalsIgnoreCase(event.getType())) {
             event.setBudgetGoal(req.budgetGoal);
             event.setBudgetPurpose(req.budgetPurpose);
-            event.setZelleInfo(req.zelleInfo);
 
             if (req.guests != null) {
                 for (ReunionGuestDTO g : req.guests) {
@@ -324,6 +325,8 @@ public class EventController {
                     tier.setEndTime(tierReq.endTime);
                     tier.setForceOpen(tierReq.forceOpen);
                     tier.setEvent(event);
+                    event.setZelleEmail(req.zelleEmail);
+                    event.setZellePhone(req.zellePhone);
 
                     updatedTiers.add(tier);
                 }
@@ -392,7 +395,8 @@ public class EventController {
 
         public String budgetPurpose;
         public Double budgetGoal;
-        public String zelleInfo;
+        public String zelleEmail;
+        public String zellePhone;
         public List<ReunionGuestDTO> guests;
     }
 

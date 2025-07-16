@@ -76,7 +76,8 @@ public class Event {
     // 🧾 Only used for reunions
     private String budgetPurpose;
     private Double budgetGoal;
-    private String zelleInfo;
+    private String zelleEmail;
+    private String zellePhone;
 
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ReunionGuest> reunionGuests = new ArrayList<>();
@@ -106,10 +107,16 @@ public class Event {
         return budgetPurpose;
     }
 
-    @JsonProperty("zelleInfo")
-    public String getZelleInfo() {
-        return zelleInfo;
+    @JsonProperty("zelleEmail")
+    public String getZelleEmail() {
+        return zelleEmail;
     }
+
+    @JsonProperty("zellePhone")
+    public String getZellePhone() {
+        return zellePhone;
+    }
+
 
     @JsonProperty("reunionGuests")
     public List<ReunionGuest> getGuests() {
