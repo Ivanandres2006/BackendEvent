@@ -50,11 +50,17 @@ public class ChatController {
 
     @PostMapping("/start-with-admin")
     public ResponseEntity<?> startAdminChat(@AuthenticationPrincipal UserDetailsImpl userDetails) {
-        Long userId = userDetails.getId();
-
-        ChatRoom room = chatService.createOrFetchAdminChat(userId);
-        return ResponseEntity.ok(Map.of("chatRoomId", room.getId()));
+        try {
+            Long userId = userDetails.getId();
+            ChatRoom room = chatService.createOrFetchAdminChat(userId);
+            return ResponseEntity.ok(Map.of("chatRoomId", room.getId())); // ✅ Proper JSON
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to start chat with admin"));
+        }
     }
+
 
 
 
