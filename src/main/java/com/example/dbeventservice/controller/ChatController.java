@@ -64,6 +64,7 @@ public class ChatController {
 
 
 
+
     @GetMapping("/my-rooms")
     public ResponseEntity<List<ChatRoom>> getUserChatRooms(@AuthenticationPrincipal UserDetailsImpl userDetails) {
         List<ChatRoom> rooms = chatService.getAllUserChatRooms(userDetails.getId());

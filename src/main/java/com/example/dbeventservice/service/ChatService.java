@@ -493,6 +493,7 @@ public class ChatService {
     }
 
 
+
     public ChatRoom createOrFetchDirectChat(Long userId, Long eventId) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("Event not found"));
