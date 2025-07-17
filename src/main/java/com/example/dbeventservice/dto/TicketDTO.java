@@ -16,6 +16,13 @@ public class TicketDTO {
     private Long eventId;
     private boolean resold;
 
+    private String buyerFirstName;
+    private String buyerLastName;
+    private String buyerUsername;
+    private String buyerEmail;
+    private boolean paid;
+    private String paymentMethod;
+
     // ✅ Constructor used when just mapping a Ticket (default fallback)
     public TicketDTO(Ticket ticket) {
         this(ticket, false); // default: not resold
@@ -30,5 +37,15 @@ public class TicketDTO {
         this.eventTitle = ticket.getEvent().getTitle();
         this.eventId = ticket.getEvent().getId();
         this.resold = isResold();
+
+        if (ticket.getOwner() != null) {
+            this.buyerFirstName = ticket.getOwner().getFirstName();
+            this.buyerLastName = ticket.getOwner().getLastName();
+            this.buyerUsername = ticket.getOwner().getUsername();
+            this.buyerEmail = ticket.getOwner().getEmail();
+        }
+
+        this.paid = ticket.isPaid(); // 🔁 You must add this field to Ticket entity
+        this.paymentMethod = ticket.getPaymentMethod();
     }
 }

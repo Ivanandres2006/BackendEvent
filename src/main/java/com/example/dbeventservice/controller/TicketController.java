@@ -4,10 +4,7 @@ import com.example.dbeventservice.auth.jwt.UserDetailsImpl;
 import com.example.dbeventservice.dto.TicketDTO;
 import com.example.dbeventservice.model.*;
 import com.example.dbeventservice.model.Enum.TicketStatus;
-import com.example.dbeventservice.repositories.ResalePostRepository;
-import com.example.dbeventservice.repositories.TicketRepository;
-import com.example.dbeventservice.repositories.TicketTierRepository;
-import com.example.dbeventservice.repositories.UserRepository;
+import com.example.dbeventservice.repositories.*;
 import com.example.dbeventservice.service.TicketService;
 import lombok.Getter;
 import lombok.Setter;
@@ -40,6 +37,8 @@ public class TicketController {
 
     @Autowired
     private ResalePostRepository resalePostRepository; // ✅ NEW
+    @Autowired
+    private EventRepository eventRepository;
 
     @Autowired
     public TicketController(TicketService ticketService) {
@@ -56,7 +55,8 @@ public class TicketController {
                     request.getTicketTierId(),
                     request.getQuantity(),
                     request.getEmail(),
-                    request.getRef()
+                    request.getRef(),
+                    request.getPaymentMethod() // ✅ NEW
             );
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -87,6 +87,49 @@ public class TicketController {
         ticketService.confirmPayment(paymentIntentId);
         return ResponseEntity.ok(Map.of("status", "confirmed"));
     }
+
+    @GetMapping("/event/{eventId}/dashboard")
+    public ResponseEntity<?> getTicketsForEventDashboard(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal UserDetailsImpl userDetails
+    ) {
+        Optional<Event> eventOpt = eventRepository.findById(eventId);
+        if (eventOpt.isEmpty()) return ResponseEntity.status(404).body(Map.of("error", "Event not found"));
+
+        Event event = eventOpt.get();
+        if (!event.getCreatedBy().getId().equals(userDetails.getId())) {
+            return ResponseEntity.status(403).body(Map.of("error", "Unauthorized"));
+        }
+
+        List<Ticket> tickets = ticketRepository.findByEventId(eventId);
+        List<TicketDTO> result = tickets.stream()
+                .map(t -> new TicketDTO(t, false))
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(result);
+    }
+
+    @PutMapping("/{ticketId}/toggle-paid")
+    public ResponseEntity<?> togglePaidStatus(
+            @PathVariable Long ticketId,
+            @AuthenticationPrincipal UserDetailsImpl userDetails
+    ) {
+        Optional<Ticket> ticketOpt = ticketRepository.findById(ticketId);
+        if (ticketOpt.isEmpty()) return ResponseEntity.status(404).body(Map.of("error", "Ticket not found"));
+
+        Ticket ticket = ticketOpt.get();
+        Event event = ticket.getEvent();
+
+        if (!event.getCreatedBy().getId().equals(userDetails.getId())) {
+            return ResponseEntity.status(403).body(Map.of("error", "Unauthorized"));
+        }
+
+        ticket.setPaid(!ticket.isPaid());
+        ticketRepository.save(ticket);
+
+        return ResponseEntity.ok(Map.of("status", "Payment status updated", "paid", ticket.isPaid()));
+    }
+
 
     @GetMapping("/my")
     public ResponseEntity<?> myTickets(@RequestParam String email) {
@@ -229,7 +272,7 @@ public class TicketController {
         private Long ticketTierId;
         private int quantity;
         private String email;
-
-        private String ref; // ✅ Add this for promoter code
+        private String ref;
+        private String paymentMethod;
     }
 }

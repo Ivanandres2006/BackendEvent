@@ -23,6 +23,12 @@ public class Ticket {
 
     private String qrCodeUrl;
 
+    @Column(nullable = false)
+    private boolean paid = false;
+
+    @Column
+    private String paymentMethod;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id")
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})

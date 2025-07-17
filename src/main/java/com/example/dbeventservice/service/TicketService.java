@@ -58,7 +58,15 @@ public class TicketService {
         Stripe.apiKey = stripeSecretKey;
     }
 
-    public Map<String, Object> createCheckout(Long userId, Long eventId, Long ticketTierId, int quantity, String email, String ref) throws StripeException {
+    public Map<String, Object> createCheckout(
+            Long userId,
+            Long eventId,
+            Long ticketTierId,
+            int quantity,
+            String email,
+            String ref,
+            String paymentMethod
+    ) throws StripeException {
         Optional<User> userOpt = userRepository.findById(userId);
         Optional<TicketTier> tierOpt = ticketTierRepository.findById(ticketTierId);
         Optional<Event> eventOpt = eventRepository.findById(eventId);
@@ -77,12 +85,17 @@ public class TicketService {
 
         Map<String, Object> response = new HashMap<>();
 
-        // ✅ FREE ticket path
-        if (tier.getPrice() <= 0.0) {
+        // ✅ Handle free tickets and Zelle
+        boolean isFree = tier.getPrice() <= 0.0;
+        boolean isZelle = "zelle".equalsIgnoreCase(paymentMethod);
+
+        if (isFree || isZelle) {
             Ticket ticket = new Ticket();
             ticket.setOwner(user);
             ticket.setEvent(event);
             ticket.setTicketTier(tier);
+            ticket.setPaymentMethod(paymentMethod != null ? paymentMethod : (isFree ? "free" : "zelle"));
+            ticket.setPaid(isFree); // Only mark as paid if truly free
             ticket.setQuantity(quantity);
             ticket.setStatus(TicketStatus.PAID);
             ticketRepository.save(ticket);
@@ -100,7 +113,6 @@ public class TicketService {
             event.updateAggregateInfoFromTiers();
             eventRepository.save(event);
 
-            // ✅ track referral if present
             if (ref != null && !ref.isBlank()) {
                 promoterRepository.findByReferralCode(ref).ifPresent(promoter -> {
                     PromoterEvent pe = promoterService.assignEventToPromoter(eventId, promoter.getUser().getUsername());
@@ -116,10 +128,11 @@ public class TicketService {
             }
 
             response.put("free", "true");
+            response.put("zelle", isZelle);
             return response;
         }
 
-        // ✅ PAID ticket path
+        // ✅ Stripe Payment (card)
         long amount = (long) (tier.getPrice() * quantity * 100);
 
         PaymentIntentCreateParams.Builder builder = PaymentIntentCreateParams.builder()
@@ -138,7 +151,6 @@ public class TicketService {
                                 .build()
                 );
 
-        // ✅ Add ref into Stripe metadata (optional for later use)
         if (ref != null && !ref.isBlank()) {
             builder.putMetadata("ref", ref);
         }
@@ -182,6 +194,8 @@ public class TicketService {
                 ticket.setOwner(user);
                 ticket.setEvent(event);
                 ticket.setTicketTier(tier);
+                ticket.setPaymentMethod("stripe");
+                ticket.setPaid(true); // only set if payment is confirmed
                 ticket.setQuantity(quantity);
                 ticket.setStatus(TicketStatus.PAID);
                 ticketRepository.save(ticket);
