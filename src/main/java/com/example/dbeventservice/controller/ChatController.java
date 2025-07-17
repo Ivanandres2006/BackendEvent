@@ -53,7 +53,7 @@ public class ChatController {
         Long userId = userDetails.getId();
 
         ChatRoom room = chatService.createOrFetchAdminChat(userId);
-        return ResponseEntity.ok(room.getId());
+        return ResponseEntity.ok(Map.of("chatRoomId", room.getId()));
     }
 
 
