@@ -465,6 +465,34 @@ public class ChatService {
         return counterOfferRepository.existsByChatRoomIdAndSenderIdAndStatus(chatRoomId, senderId, "PENDING");
     }
 
+    public ChatRoom createOrFetchAdminChat(Long userId) {
+        Long adminId = 1L; // or fetch admin dynamically if you want later
+
+        if (userId.equals(adminId)) {
+            throw new IllegalArgumentException("Cannot chat with yourself");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        User admin = userRepository.findById(adminId)
+                .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
+
+        return chatRoomRepository.findDirectChat(null, userId, adminId)
+                .orElseGet(() -> {
+                    ChatRoom room = new ChatRoom();
+                    room.setType(ChatType.DIRECT);
+                    room.setEventId(null); // no event = admin chat
+
+                    Set<User> participants = new HashSet<>();
+                    participants.add(user);
+                    participants.add(admin);
+                    room.setParticipants(participants);
+
+                    return chatRoomRepository.save(room);
+                });
+    }
+
+
     public ChatRoom createOrFetchDirectChat(Long userId, Long eventId) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("Event not found"));

@@ -36,13 +36,27 @@ public class ChatController {
 
     // ✅ Create or get a chat room between buyer and seller
     @PostMapping("/start")
-    public ResponseEntity<ChatRoom> startChat(
+    public ResponseEntity<?> startChat(
             @AuthenticationPrincipal UserDetailsImpl userDetails,
             @RequestBody StartChatRequest request) {
 
-        ChatRoom room = chatService.createOrGetChatRoom(request.resalePostId, userDetails.getId());
+        if (request.getResalePostId() == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "resalePostId is required"));
+        }
+
+        ChatRoom room = chatService.createOrGetChatRoom(request.getResalePostId(), userDetails.getId());
         return ResponseEntity.ok(room);
     }
+
+    @PostMapping("/start-with-admin")
+    public ResponseEntity<?> startAdminChat(@AuthenticationPrincipal UserDetailsImpl userDetails) {
+        Long userId = userDetails.getId();
+
+        ChatRoom room = chatService.createOrFetchAdminChat(userId);
+        return ResponseEntity.ok(room.getId());
+    }
+
+
 
     @GetMapping("/my-rooms")
     public ResponseEntity<List<ChatRoom>> getUserChatRooms(@AuthenticationPrincipal UserDetailsImpl userDetails) {
