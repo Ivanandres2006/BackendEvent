@@ -35,6 +35,9 @@ public class User {
 
     private String password;
 
+    @Column(name = "can_create_events")
+    private boolean canCreateEvents = false;
+
     private boolean emailVerified;
     private boolean phoneVerified;
 

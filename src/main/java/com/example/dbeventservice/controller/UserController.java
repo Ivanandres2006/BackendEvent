@@ -52,6 +52,7 @@ public class UserController {
                 user.getEmail(),
                 user.getPhone(),
                 user.getRole().name(),
+                user.isCanCreateEvents(),
                 user.getUsername(),
                 promotedEvents // ✅ Include this
         ));
@@ -66,6 +67,7 @@ public class UserController {
         private String email;
         private String phone;
         private String role;
+        private boolean canCreateEvents;
         private String username;
         private List<Long> promotedEvents; // ✅ NEW
     }

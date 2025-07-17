@@ -324,6 +324,10 @@ public class ChatService {
                             .filter(m -> !m.getSender().equals(user))
                             .count();
 
+                    Long otherUserId = room.getBuyer().getId().equals(userId)
+                            ? room.getSeller().getId()
+                            : room.getBuyer().getId();
+
                     return ChatRoomSummaryDTO.builder()
                             .chatRoomId(room.getId())
                             .resalePostId(room.getResalePost().getId())
@@ -332,7 +336,9 @@ public class ChatService {
                             .sellerName(room.getSeller().getFirstName())
                             .unreadMessages(unread)
                             .type(room.getType().name())
+                            .otherUserId(otherUserId) // ✅ Add this line
                             .build();
+
                 }).toList();
 
         // 🟨 Event-based chats (DIRECT, PROMOTER_GROUP)
@@ -344,6 +350,12 @@ public class ChatService {
                             .filter(m -> !m.getSender().equals(user))
                             .count();
 
+                    Long otherUserId = room.getParticipants().stream()
+                            .filter(u -> !u.getId().equals(userId))
+                            .findFirst()
+                            .map(User::getId)
+                            .orElse(null); // could be null if no other user
+
                     return ChatRoomSummaryDTO.builder()
                             .chatRoomId(room.getId())
                             .resalePostId(null)
@@ -352,8 +364,10 @@ public class ChatService {
                             .buyerId(null)
                             .sellerName(null)
                             .unreadMessages(unread)
-                            .eventId(room.getEventId()) // ✅ ADD THIS LINE
+                            .eventId(room.getEventId())
+                            .otherUserId(otherUserId) // ✅ Add this line
                             .build();
+
                 }).toList();
 
         // 🧩 Combine all chats

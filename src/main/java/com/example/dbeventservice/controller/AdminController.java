@@ -2,6 +2,7 @@ package com.example.dbeventservice.controller;
 
 import com.example.dbeventservice.auth.jwt.UserDetailsImpl;
 import com.example.dbeventservice.dto.AdminEventDTO;
+import com.example.dbeventservice.dto.AdminUserDTO;
 import com.example.dbeventservice.model.*;
 import com.example.dbeventservice.repositories.EventRepository;
 import com.example.dbeventservice.repositories.ResalePostRepository;
@@ -27,9 +28,20 @@ public class AdminController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/users")
-    public ResponseEntity<List<User>> getAllUsers() {
-        return ResponseEntity.ok(userRepository.findAll());
+    public ResponseEntity<List<AdminUserDTO>> getAllUsers() {
+        List<AdminUserDTO> users = userRepository.findAll().stream()
+                .map(u -> new AdminUserDTO(
+                        u.getId(),
+                        u.getEmail(),
+                        u.getFirstName(),
+                        u.getLastName(),
+                        u.isCanCreateEvents()
+                ))
+                .toList();
+
+        return ResponseEntity.ok(users);
     }
+
 
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/user/{id}")
@@ -37,6 +49,16 @@ public class AdminController {
         userRepository.deleteById(id);
         return ResponseEntity.ok("User deleted");
     }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/user/{userId}/permission")
+    public ResponseEntity<?> setEventPermission(
+            @PathVariable Long userId,
+            @RequestParam boolean allow) {
+        userRepository.updateEventCreationPermission(userId, allow);
+        return ResponseEntity.ok("Permission updated");
+    }
+
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/events")
