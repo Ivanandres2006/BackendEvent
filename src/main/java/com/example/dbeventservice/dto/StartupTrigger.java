@@ -2,6 +2,8 @@ package com.example.dbeventservice.dto;
 
 import com.example.dbeventservice.repositories.UserRepository;
 import jakarta.annotation.PostConstruct;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -13,10 +15,10 @@ public class StartupTrigger {
         this.userRepository = userRepository;
     }
 
-    @PostConstruct
+    @EventListener(ApplicationReadyEvent.class)
     public void init() {
         System.out.println("✅ Forcing JPA/Hibernate to initialize...");
-        userRepository.count(); // 🧠 Any JPA method works here
+        userRepository.count(); // 🧠 This is safe now
     }
 }
 
