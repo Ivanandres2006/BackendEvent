@@ -331,7 +331,8 @@ public class EventController {
                     updatedTiers.add(tier);
                 }
 
-                event.setTicketTiers(new ArrayList<>(updatedTiers));
+                event.getTicketTiers().clear(); // keep same reference
+                event.getTicketTiers().addAll(updatedTiers);
             }
 
             eventRepository.save(event);
