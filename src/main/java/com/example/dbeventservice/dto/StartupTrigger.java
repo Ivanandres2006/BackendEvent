@@ -18,7 +18,7 @@ public class StartupTrigger {
     @EventListener(ApplicationReadyEvent.class)
     public void init() {
         System.out.println("✅ Forcing JPA/Hibernate to initialize...");
-        userRepository.count(); // 🧠 This is safe now
+        //userRepository.count(); // 🧠 This is safe now
     }
 }
 
