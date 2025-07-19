@@ -2,9 +2,11 @@ package com.example.dbeventservice;
 
 import com.example.dbeventservice.model.User;
 import com.example.dbeventservice.repositories.UserRepository;
+import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.metamodel.Metamodel;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -19,6 +21,9 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 @EnableJpaRepositories(basePackages = "com.example.dbeventservice.repositories")
 @EnableTransactionManagement
 public class DbEventServiceApplication {
+    @Autowired
+    EntityManager entityManager;
+
     public static void main(String[] args) {
         SpringApplication.run(DbEventServiceApplication.class, args);
     }
@@ -57,5 +62,13 @@ public class DbEventServiceApplication {
         };
     }
 
+    @PostConstruct
+    public void forceTableCreation() {
+        try {
+            entityManager.createQuery("select u from User u").getResultList();
+        } catch (Exception e) {
+            e.printStackTrace(); // Will show if table is missing
+        }
+    }
 
 }
