@@ -62,13 +62,6 @@ public class DbEventServiceApplication {
         };
     }
 
-    @PostConstruct
-    public void forceTableCreation() {
-        try {
-            entityManager.createQuery("select u from User u").getResultList();
-        } catch (Exception e) {
-            e.printStackTrace(); // Will show if table is missing
-        }
-    }
+
 
 }
