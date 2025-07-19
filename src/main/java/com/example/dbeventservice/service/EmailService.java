@@ -28,7 +28,7 @@ public class EmailService {
         // Configure email
         helper.setTo(to);
         helper.setSubject("Verify your email");
-        helper.setFrom("no-reply@dbevent.com");
+        helper.setFrom("madrizivanandres@gmail.com");
         helper.setText(htmlContent, true); // true = HTML
 
         mailSender.send(mimeMessage);
