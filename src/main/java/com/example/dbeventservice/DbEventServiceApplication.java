@@ -1,12 +1,16 @@
 package com.example.dbeventservice;
 
+import com.example.dbeventservice.model.User;
+import com.example.dbeventservice.repositories.UserRepository;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.metamodel.Metamodel;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
@@ -25,6 +29,25 @@ public class DbEventServiceApplication {
             System.out.println("✅ Checking entities...");
             Metamodel metamodel = entityManager.getMetamodel();
             metamodel.getEntities().forEach(e -> System.out.println("🧩 Entity found: " + e.getName()));
+        };
+    }
+
+    @Bean
+    public CommandLineRunner forceStartup(EntityManagerFactory emf) {
+        return args -> {
+            emf.createEntityManager().close();
+            System.out.println("✅ EntityManagerFactory initialized manually.");
+        };
+    }
+
+    @Bean
+    public CommandLineRunner testJPA(UserRepository userRepo) {
+        return args -> {
+            User user = new User();
+            user.setEmail("dummy@email.com");
+            user.setPassword("pass");
+            userRepo.save(user);
+            System.out.println("✅ Dummy user saved to test JPA");
         };
     }
 
