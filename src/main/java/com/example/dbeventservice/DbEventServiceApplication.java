@@ -40,16 +40,6 @@ public class DbEventServiceApplication {
         };
     }
 
-    @Bean
-    public CommandLineRunner testJPA(UserRepository userRepo) {
-        return args -> {
-            User user = new User();
-            user.setEmail("dummy@email.com");
-            user.setPassword("pass");
-            userRepo.save(user);
-            System.out.println("✅ Dummy user saved to test JPA");
-        };
-    }
 
 
 }
