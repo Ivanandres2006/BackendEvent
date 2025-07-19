@@ -17,9 +17,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 @SpringBootApplication
-@EntityScan(basePackages = "com.example.dbeventservice")
-@EnableJpaRepositories(basePackages = "com.example.dbeventservice.repositories")
-@EnableTransactionManagement
 public class DbEventServiceApplication {
     @Autowired
     EntityManager entityManager;
