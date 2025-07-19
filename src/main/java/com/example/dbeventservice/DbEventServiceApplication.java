@@ -55,13 +55,6 @@ public class DbEventServiceApplication {
         };
     }
 
-    @Bean
-    public CommandLineRunner forceJpaInit(UserRepository repo) {
-        return args -> {
-            System.out.println("🔥 Forcing table init by counting users: " + repo.count());
-        };
-    }
-
 
 
 }
