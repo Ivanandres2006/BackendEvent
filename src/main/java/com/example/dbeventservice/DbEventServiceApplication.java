@@ -15,7 +15,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 @SpringBootApplication
-@EntityScan(basePackages = "com.example.dbeventservice.model")
+@EntityScan(basePackages = "com.example.dbeventservice")
 @EnableJpaRepositories(basePackages = "com.example.dbeventservice.repositories")
 @EnableTransactionManagement
 public class DbEventServiceApplication {
@@ -40,6 +40,14 @@ public class DbEventServiceApplication {
         };
     }
 
-
+    @Bean
+    public CommandLineRunner listEntities(EntityManager entityManager) {
+        return args -> {
+            System.out.println("📦 All JPA Entities:");
+            entityManager.getMetamodel().getEntities().forEach(entityType -> {
+                System.out.println("🧩 " + entityType.getName());
+            });
+        };
+    }
 
 }
