@@ -24,7 +24,7 @@ public class ReunionGuest {
 
     @JsonIgnore
     @ManyToOne
-    @JoinColumn(name = "event_id")
+    @JoinColumn(name = "event_id", nullable = false)
     private Event event;
 
 }
