@@ -25,33 +25,4 @@ public class DbEventServiceApplication {
         SpringApplication.run(DbEventServiceApplication.class, args);
     }
 
-    @Bean
-    public CommandLineRunner testEntityManager(EntityManager entityManager) {
-        return args -> {
-            System.out.println("✅ Checking entities...");
-            Metamodel metamodel = entityManager.getMetamodel();
-            metamodel.getEntities().forEach(e -> System.out.println("🧩 Entity found: " + e.getName()));
-        };
-    }
-
-    @Bean
-    public CommandLineRunner forceStartup(EntityManagerFactory emf) {
-        return args -> {
-            emf.createEntityManager().close();
-            System.out.println("✅ EntityManagerFactory initialized manually.");
-        };
-    }
-
-    @Bean
-    public CommandLineRunner listEntities(EntityManager entityManager) {
-        return args -> {
-            System.out.println("📦 All JPA Entities:");
-            entityManager.getMetamodel().getEntities().forEach(entityType -> {
-                System.out.println("🧩 " + entityType.getName());
-            });
-        };
-    }
-
-
-
 }
