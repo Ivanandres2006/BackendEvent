@@ -475,17 +475,19 @@ public class ChatService {
     }
 
     public ChatRoom createOrFetchAdminChat(Long userId) {
-        Long adminId = 1L; // or fetch admin dynamically if you want later
-
-        if (userId.equals(adminId)) {
-            throw new IllegalArgumentException("Cannot chat with yourself");
-        }
-
+        // 🔒 Make sure user is not the admin
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        Long adminId = 1L;
         User admin = userRepository.findById(adminId)
                 .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
 
+        if (user.getId().equals(admin.getId())) {
+            throw new IllegalArgumentException("Cannot chat with yourself");
+        }
+
+        // ✅ Try to reuse existing admin chat room
         return chatRoomRepository.findDirectChat(null, userId, adminId)
                 .orElseGet(() -> {
                     ChatRoom room = new ChatRoom();
@@ -500,6 +502,7 @@ public class ChatService {
                     return chatRoomRepository.save(room);
                 });
     }
+
 
 
 

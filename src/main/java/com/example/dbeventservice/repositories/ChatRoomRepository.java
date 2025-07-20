@@ -17,8 +17,17 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
     Optional<ChatRoom> findByResalePostIdAndBuyerId(Long resalePostId, Long buyerId);
     Optional<ChatRoom> findByEventIdAndType(Long eventId, ChatType type);
 
-    @Query("SELECT c FROM ChatRoom c JOIN c.participants p1 JOIN c.participants p2 " +
-            "WHERE c.type = 'DIRECT' AND c.eventId = :eventId AND p1.id = :userId AND p2.id = :ownerId")
+    @Query("""
+    SELECT c FROM ChatRoom c
+    WHERE c.type = 'DIRECT'
+      AND c.eventId = :eventId
+      AND EXISTS (
+          SELECT 1 FROM c.participants u1 WHERE u1.id = :userId
+      )
+      AND EXISTS (
+          SELECT 1 FROM c.participants u2 WHERE u2.id = :ownerId
+      )
+""")
     Optional<ChatRoom> findDirectChat(Long eventId, Long userId, Long ownerId);
 
     List<ChatRoom> findByParticipantsContaining(User user);

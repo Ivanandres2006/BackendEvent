@@ -8,6 +8,7 @@ import com.example.dbeventservice.repositories.EventRepository;
 import com.example.dbeventservice.repositories.ResalePostRepository;
 import com.example.dbeventservice.repositories.TicketRepository;
 import com.example.dbeventservice.repositories.UserRepository;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -51,6 +52,7 @@ public class AdminController {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
     @PostMapping("/user/{userId}/permission")
     public ResponseEntity<?> setEventPermission(
             @PathVariable Long userId,
