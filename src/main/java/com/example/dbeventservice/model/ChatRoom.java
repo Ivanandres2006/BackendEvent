@@ -39,7 +39,8 @@ public class ChatRoom {
     @Builder.Default
     private Set<User> participants = new HashSet<>();
 
-
+    @ManyToOne
+    private User otherUsername;
 
 
     @ManyToOne

@@ -328,6 +328,12 @@ public class ChatService {
                             ? room.getSeller().getId()
                             : room.getBuyer().getId();
 
+                    String otherUsername = room.getParticipants().stream()
+                            .filter(u -> !u.getId().equals(userId))
+                            .findFirst()
+                            .map(User::getUsername)
+                            .orElse("unknown");
+
                     return ChatRoomSummaryDTO.builder()
                             .chatRoomId(room.getId())
                             .resalePostId(room.getResalePost().getId())
@@ -336,7 +342,8 @@ public class ChatService {
                             .sellerName(room.getSeller().getFirstName())
                             .unreadMessages(unread)
                             .type(room.getType().name())
-                            .otherUserId(otherUserId) // ✅ Add this line
+                            .otherUserId(otherUserId)
+                            .otherUsername(otherUsername)
                             .build();
 
                 }).toList();

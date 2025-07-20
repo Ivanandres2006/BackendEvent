@@ -18,4 +18,5 @@ public class ChatRoomSummaryDTO {
     private Long otherUserId;
     private Long eventId;
     private String type;
+    private String otherUsername;
 }
