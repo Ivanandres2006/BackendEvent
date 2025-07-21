@@ -101,7 +101,7 @@ public class TicketController {
             return ResponseEntity.status(403).body(Map.of("error", "Unauthorized"));
         }
 
-        List<Ticket> tickets = ticketRepository.findByEventId(eventId);
+        List<Ticket> tickets = ticketRepository.findTicketsWithDetailsByEventId(eventId);
         List<TicketDTO> result = tickets.stream()
                 .map(t -> new TicketDTO(t, false))
                 .collect(Collectors.toList());

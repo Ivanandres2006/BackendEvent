@@ -29,4 +29,11 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     List<Ticket> findTicketsWithDetailsByOwnerAndStatus(@Param("owner") User owner,
                                                         @Param("status") TicketStatus status);
 
+    @Query("SELECT t FROM Ticket t " +
+            "JOIN FETCH t.ticketTier " +
+            "JOIN FETCH t.event e " +
+            "JOIN FETCH t.owner " +
+            "WHERE e.id = :eventId")
+    List<Ticket> findTicketsWithDetailsByEventId(@Param("eventId") Long eventId);
+
 }
