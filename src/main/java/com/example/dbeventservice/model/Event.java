@@ -73,11 +73,23 @@ public class Event {
         return createdBy != null ? createdBy.getUsername() : null;
     }
 
-    // 🧾 Only used for reunions
     private String budgetPurpose;
     private Double budgetGoal;
     private String zelleEmail;
     private String zellePhone;
+
+    private String pagoMovilPhone;
+    private String pagoMovilCi;
+    private String pagoMovilBank;
+    private String cashNote;
+
+
+    @Column
+    private boolean allowPagoMovil;
+
+    @Column
+    private boolean allowCash;
+
 
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ReunionGuest> reunionGuests = new ArrayList<>();
@@ -122,4 +134,25 @@ public class Event {
     public List<ReunionGuest> getGuests() {
         return reunionGuests;
     }
+
+    @JsonProperty("pagoMovilPhone")
+    public String getPagoMovilPhone() {
+        return pagoMovilPhone;
+    }
+
+    @JsonProperty("pagoMovilCi")
+    public String getPagoMovilCi() {
+        return pagoMovilCi;
+    }
+
+    @JsonProperty("pagoMovilBank")
+    public String getPagoMovilBank() {
+        return pagoMovilBank;
+    }
+
+    @JsonProperty("cashNote")
+    public String getCashNote() {
+        return cashNote;
+    }
+
 }

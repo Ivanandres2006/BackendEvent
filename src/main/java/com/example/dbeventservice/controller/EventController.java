@@ -142,6 +142,12 @@ public class EventController {
         event.setLongitude(req.longitude);
         event.setZelleEmail(req.zelleEmail);
         event.setZellePhone(req.zellePhone);
+        event.setAllowPagoMovil(req.allowPagoMovil);
+        event.setAllowCash(req.allowCash);
+        event.setPagoMovilPhone(req.pagoMovilPhone);
+        event.setPagoMovilCi(req.pagoMovilCi);
+        event.setPagoMovilBank(req.pagoMovilBank);
+        event.setCashNote(req.cashNote);
         event.setType(req.type != null ? req.type : "event");
 
         if ("reunion".equalsIgnoreCase(event.getType())) {
@@ -327,7 +333,12 @@ public class EventController {
                     tier.setEvent(event);
                     event.setZelleEmail(req.zelleEmail);
                     event.setZellePhone(req.zellePhone);
-
+                    event.setAllowPagoMovil(req.allowPagoMovil);
+                    event.setAllowCash(req.allowCash);
+                    event.setPagoMovilPhone(req.pagoMovilPhone);
+                    event.setPagoMovilCi(req.pagoMovilCi);
+                    event.setPagoMovilBank(req.pagoMovilBank);
+                    event.setCashNote(req.cashNote);
                     updatedTiers.add(tier);
                 }
 
@@ -399,6 +410,15 @@ public class EventController {
         public String zelleEmail;
         public String zellePhone;
         public List<ReunionGuestDTO> guests;
+
+        public boolean allowPagoMovil;
+        public boolean allowCash;
+
+        public String pagoMovilPhone;
+        public String pagoMovilCi;
+        public String pagoMovilBank;
+
+        public String cashNote;
     }
 
     @Getter
