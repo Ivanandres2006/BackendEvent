@@ -120,7 +120,9 @@ public class TicketController {
         Ticket ticket = ticketOpt.get();
         Event event = ticket.getEvent();
 
+
         if (!event.getCreatedBy().getId().equals(userDetails.getId())) {
+            System.out.println("❌ Unauthorized toggle attempt by user: " + userDetails.getId());
             return ResponseEntity.status(403).body(Map.of("error", "Unauthorized"));
         }
 
