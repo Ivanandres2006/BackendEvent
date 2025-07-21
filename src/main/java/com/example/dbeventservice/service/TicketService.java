@@ -87,17 +87,27 @@ public class TicketService {
 
         // ✅ Handle free tickets and Zelle
         boolean isFree = tier.getPrice() <= 0.0;
-        boolean isZelle = "zelle".equalsIgnoreCase(paymentMethod);
+        boolean isManualPayment = paymentMethod != null &&
+                (paymentMethod.equalsIgnoreCase("zelle") ||
+                        paymentMethod.equalsIgnoreCase("pagoMovil") ||
+                        paymentMethod.equalsIgnoreCase("cash"));
 
-        if (isFree || isZelle) {
+        if (isFree || isManualPayment) {
             Ticket ticket = new Ticket();
             ticket.setOwner(user);
             ticket.setEvent(event);
             ticket.setTicketTier(tier);
-            ticket.setPaymentMethod(paymentMethod != null ? paymentMethod : (isFree ? "free" : "zelle"));
-            ticket.setPaid(isFree); // Only mark as paid if truly free
+            ticket.setPaymentMethod(paymentMethod != null ? paymentMethod : "free");
             ticket.setQuantity(quantity);
-            ticket.setStatus(TicketStatus.PAID);
+
+            if (isFree) {
+                ticket.setPaid(true);
+                ticket.setStatus(TicketStatus.PAID);
+            } else {
+                ticket.setPaid(false); // ❗ not paid yet
+                ticket.setStatus(TicketStatus.PENDING); // ❗ organizer decides
+            }
+
             ticketRepository.save(ticket);
 
             ticket.setQrCodeUrl(QRCodeGenerator.generate(ticket.getId(), email));
@@ -127,8 +137,8 @@ public class TicketService {
                 });
             }
 
-            response.put("free", "true");
-            response.put("zelle", isZelle);
+            response.put("manual", isManualPayment);
+            response.put("free", isFree);
             return response;
         }
 
