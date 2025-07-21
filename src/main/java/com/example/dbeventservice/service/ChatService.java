@@ -5,6 +5,7 @@ import com.example.dbeventservice.dto.MessageDTO;
 import com.example.dbeventservice.model.*;
 import com.example.dbeventservice.model.Enum.ChatType;
 import com.example.dbeventservice.model.Enum.OfferStatus;
+import com.example.dbeventservice.model.Enum.Role;
 import com.example.dbeventservice.repositories.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
@@ -474,36 +475,55 @@ public class ChatService {
         return counterOfferRepository.existsByChatRoomIdAndSenderIdAndStatus(chatRoomId, senderId, "PENDING");
     }
 
+    @Transactional
     public ChatRoom createOrFetchAdminChat(Long userId) {
-        // 🔒 Make sure user is not the admin
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        Long adminId = 1L;
-        User admin = userRepository.findById(adminId)
-                .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
+        Optional<User> adminOpt = userRepository.findAll().stream()
+                .filter(u -> u.getRole() == Role.ADMIN)
+                .findFirst();
+
+        if (adminOpt.isEmpty()) {
+            throw new IllegalStateException("No admin found");
+        }
+
+        User admin = adminOpt.get();
 
         if (user.getId().equals(admin.getId())) {
             throw new IllegalArgumentException("Cannot chat with yourself");
         }
 
-        // ✅ Try to reuse existing admin chat room
-        return chatRoomRepository.findDirectChat(null, userId, adminId)
-                .orElseGet(() -> {
-                    ChatRoom room = new ChatRoom();
-                    room.setType(ChatType.DIRECT);
-                    room.setEventId(null); // no event = admin chat
+        Optional<ChatRoom> existing = chatRoomRepository.findDirectChat(null, userId, admin.getId());
+        if (existing.isPresent()) {
+            return existing.get(); // ✅ Return existing room — no new message
+        }
 
-                    Set<User> participants = new HashSet<>();
-                    participants.add(user);
-                    participants.add(admin);
-                    room.setParticipants(participants);
+        // 🆕 Create new room
+        ChatRoom room = new ChatRoom();
+        room.setType(ChatType.DIRECT);
+        room.setEventId(null);
 
-                    return chatRoomRepository.save(room);
-                });
+        Set<User> participants = new HashSet<>();
+        participants.add(user);
+        participants.add(admin);
+        room.setParticipants(participants);
+        chatRoomRepository.save(room);
+
+        // 🔎 Check if chat already has messages (shouldn't, since it’s new — but safe)
+        boolean hasMessages = messageRepository.findByChatRoom(room).size() > 0;
+        if (!hasMessages) {
+            Message welcome = Message.builder()
+                    .chatRoom(room)
+                    .sender(admin)
+                    .content("Hola 👋, ¿en qué te puedo ayudar?")
+                    .timestamp(LocalDateTime.now())
+                    .build();
+            messageRepository.save(welcome);
+        }
+
+        return room;
     }
-
-
 
 
     public ChatRoom createOrFetchDirectChat(Long userId, Long eventId) {
