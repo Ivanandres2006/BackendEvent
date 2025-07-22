@@ -58,7 +58,9 @@ public class WebSecurityConfig {
                                 "/qr/**",
                                 "/api/payments/webhook",
                                 "/api/chat/image/**",
-                                "/ping" // ✅ add this
+                                "/ping",
+                                "/api/waitlist"
+
                         ).permitAll()
                         .requestMatchers("/auth/validate").authenticated()
                         .anyRequest().authenticated()
