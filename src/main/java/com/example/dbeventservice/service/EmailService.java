@@ -28,7 +28,7 @@ public class EmailService {
         // Configure email
         helper.setTo(to);
         helper.setSubject("Verify your email");
-        helper.setFrom("no-reply@wkndevent.com"); // ✅ Match your Mailgun domain
+        helper.setFrom("\"no-reply@wkndevent.com <postmaster@wkndevent.com>\""); // ✅ Match your Mailgun domain
         helper.setText(htmlContent, true); // true = HTML
 
         mailSender.send(mimeMessage);
@@ -46,7 +46,7 @@ public class EmailService {
 
         helper.setTo(to);
         helper.setSubject("Reset your password");
-        helper.setFrom("no-reply@wkndevent.com"); // ✅ Match your Mailgun domain
+        helper.setFrom("\"no-reply@wkndevent.com <postmaster@wkndevent.com>\""); // ✅ Match your Mailgun domain
         helper.setText(htmlContent, true);
 
         mailSender.send(mimeMessage);
