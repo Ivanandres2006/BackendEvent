@@ -59,7 +59,8 @@ public class WebSecurityConfig {
                                 "/api/payments/webhook",
                                 "/api/chat/image/**",
                                 "/ping",
-                                "/api/waitlist"
+                                "/api/waitlist",
+                                "/test-email"
 
                         ).permitAll()
                         .requestMatchers("/auth/validate").authenticated()

@@ -15,16 +15,24 @@ public class MailConfig {
     public JavaMailSender javaMailSender(Environment env) {
         JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
 
-        mailSender.setHost(env.getProperty("spring.mail.host"));
+        String host = env.getProperty("spring.mail.host");
+        String user = env.getProperty("spring.mail.username");
+
+        System.out.println("📨 Mail sender config:");
+        System.out.println("Host: " + host);
+        System.out.println("User: " + user);
+
+        mailSender.setHost(host);
         mailSender.setPort(Integer.parseInt(env.getProperty("spring.mail.port", "587")));
-        mailSender.setUsername(env.getProperty("spring.mail.username"));
+        mailSender.setUsername(user);
         mailSender.setPassword(env.getProperty("spring.mail.password"));
 
         Properties props = mailSender.getJavaMailProperties();
-        props.put("mail.smtp.auth", env.getProperty("spring.mail.properties.mail.smtp.auth", "true"));
-        props.put("mail.smtp.starttls.enable", env.getProperty("spring.mail.properties.mail.smtp.starttls.enable", "true"));
-        props.put("mail.smtp.starttls.required", env.getProperty("spring.mail.properties.mail.smtp.starttls.required", "true"));
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.starttls.enable", "true");
+        props.put("mail.smtp.starttls.required", "true");
 
         return mailSender;
     }
 }
+
