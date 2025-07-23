@@ -15,7 +15,7 @@ public class TestEmailController {
     public String testEmail() {
         System.out.println("🧪 /test-email endpoint triggered");
         try {
-            emailService.sendVerificationEmail("your@email.com", "Test User", "ABC123");
+            emailService.sendVerificationEmail("madrizivanandres@gmail.com", "Test User", "ABC123");
             System.out.println("✅ Email method finished");
             return "✅ Email sent (or attempted)";
         } catch (Exception e) {
