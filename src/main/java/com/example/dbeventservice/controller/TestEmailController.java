@@ -1,28 +1,41 @@
 package com.example.dbeventservice.controller;
 
 import com.example.dbeventservice.service.EmailService;
+import jakarta.mail.internet.MimeMessage;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class TestEmailController {
 
-    @Autowired
-    private EmailService emailService;
+    private final JavaMailSender mailSender;
+
+    public TestEmailController(JavaMailSender mailSender) {
+        this.mailSender = mailSender;
+    }
 
     @GetMapping("/test-email")
-    public String testEmail() {
-        System.out.println("🧪 /test-email endpoint triggered");
+    public ResponseEntity<String> sendTestEmail() {
         try {
-            emailService.sendVerificationEmail("madrizivanandres@gmail.com", "Test User", "ABC123");
-            System.out.println("✅ Email method finished");
-            return "✅ Email sent (or attempted)";
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, "utf-8");
+
+            helper.setTo("madrizivanandres@gmail.com"); // 🔁 Put your email here
+            helper.setSubject("Test Email from Spring Boot + Mailgun");
+            helper.setText("This is a test email sent using Mailgun SMTP via Spring Boot.", true);
+            helper.setFrom("postmaster@wkndevent.com");
+
+            mailSender.send(message);
+            return ResponseEntity.ok("✅ Email sent (or attempted)");
         } catch (Exception e) {
-            System.out.println("❌ ERROR during sendVerificationEmail");
             e.printStackTrace();
-            return "❌ " + e.getMessage();
+            return ResponseEntity.status(500).body("❌ Error sending email: " + e.getMessage());
         }
     }
 }
+
 
