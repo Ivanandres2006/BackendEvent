@@ -125,8 +125,8 @@ public class EventController {
 
     @PostMapping
     public ResponseEntity<?> createEvent(@AuthenticationPrincipal UserDetailsImpl userDetails, @RequestBody EventRequest req) {
-        User user = userRepository.findById(userDetails.getId()).orElse(null);
-        if (user == null) return ResponseEntity.badRequest().body("User not found");
+        User creator = userRepository.findById(userDetails.getId()).orElse(null);
+        if (creator == null) return ResponseEntity.badRequest().body("User not found");
 
         Event event = new Event();
         event.setTitle(req.title);
@@ -134,7 +134,7 @@ public class EventController {
         event.setLocation(req.location);
         event.setDateTime(req.dateTime);
         event.setImageUrl(req.imageUrl);
-        event.setCreatedBy(user);
+        event.setCreatedBy(creator);
         event.setState(req.state);
         event.setAddress(req.address);
         event.setCountry(req.country);
@@ -153,35 +153,44 @@ public class EventController {
         if ("reunion".equalsIgnoreCase(event.getType())) {
             event.setBudgetGoal(req.budgetGoal);
             event.setBudgetPurpose(req.budgetPurpose);
-
-            if (req.guests != null) {
-                for (ReunionGuestDTO g : req.guests) {
-                    Optional<User> userOpt = userRepository.findByUsername(g.username);
-                    if (userOpt.isEmpty()) continue;
-
-                    ReunionGuest guest = new ReunionGuest();
-                    guest.setUsername(user.getUsername());
-                    guest.setEmail(user.getEmail()); // 👈 Get email from user
-                    guest.setName(user.getFirstName() + " " + user.getLastName()); // Optional
-                    guest.setPaid(g.paid);
-                    guest.setEvent(event);
-                    reunionGuestRepository.save(guest);
-                    event.getReunionGuests().add(guest);
-                }
-            }
         }
 
+        eventRepository.save(event); // ✅ Save event first
 
+        if ("reunion".equalsIgnoreCase(event.getType()) && req.guests != null) {
+            Set<String> addedUsernames = new HashSet<>();
+
+            for (ReunionGuestDTO g : req.guests) {
+                if (!addedUsernames.add(g.username.toLowerCase())) {
+                    // 👇 Skip duplicate usernames
+                    continue;
+                }
+
+                Optional<User> userOpt = userRepository.findByUsername(g.username);
+                if (userOpt.isEmpty()) {
+                    return ResponseEntity.badRequest().body("Username not found: " + g.username);
+                }
+
+
+                User guestUser = userOpt.get();
+                ReunionGuest guest = new ReunionGuest();
+                guest.setUsername(guestUser.getUsername());
+                guest.setEmail(guestUser.getEmail());
+                guest.setName(guestUser.getFirstName() + " " + guestUser.getLastName());
+                guest.setPaid(g.paid);
+                guest.setEvent(event);
+
+                reunionGuestRepository.save(guest);
+                event.getReunionGuests().add(guest);
+            }
+        }
 
         if (req.ticketTiers != null && !req.ticketTiers.isEmpty()) {
             int totalQty = req.ticketTiers.stream().mapToInt(t -> t.quantity).sum();
             double minPrice = req.ticketTiers.stream().mapToDouble(t -> t.price).min().orElse(0);
-
             event.setAvailableTickets(totalQty);
             event.setPrice(minPrice);
         }
-
-        eventRepository.save(event);
 
         if (req.ticketTiers != null) {
             for (TicketTierRequest tierReq : req.ticketTiers) {
@@ -189,19 +198,18 @@ public class EventController {
                 tier.setName(tierReq.name);
                 tier.setPrice(tierReq.price);
                 tier.setAvailableQuantity(tierReq.quantity);
-                tier.setTierOrder(tierReq.order); // ✅ order logic
-                tier.setStartTime(tierReq.startTime); // ✅ availability start
-                tier.setEndTime(tierReq.endTime);     // ✅ availability end
+                tier.setTierOrder(tierReq.order);
+                tier.setStartTime(tierReq.startTime);
+                tier.setEndTime(tierReq.endTime);
                 tier.setForceOpen(tierReq.isForceOpen());
                 tier.setEvent(event);
                 ticketTierRepository.save(tier);
             }
         }
 
-
         return ResponseEntity.ok(Map.of(
                 "id", event.getId(),
-                "createdByUsername", user.getUsername() // 👈 Add this
+                "createdByUsername", creator.getUsername()
         ));
     }
 
