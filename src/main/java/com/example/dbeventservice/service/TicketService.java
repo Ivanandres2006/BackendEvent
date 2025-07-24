@@ -218,6 +218,42 @@ public class TicketService {
         return response;
     }
 
+    public void confirmReunionPayment(String paymentIntentId) {
+        try {
+            PaymentIntent intent = PaymentIntent.retrieve(paymentIntentId);
+            Map<String, String> metadata = intent.getMetadata();
+
+            String userIdStr = metadata.get("userId");
+            String eventIdStr = metadata.get("eventId");
+
+            if (userIdStr == null || eventIdStr == null) {
+                System.out.println("⚠️ Reunion payment missing metadata.");
+                return;
+            }
+
+            Long userId = Long.parseLong(userIdStr);
+            Long eventId = Long.parseLong(eventIdStr);
+
+            // ✅ Find guest and mark as paid
+            Optional<ReunionGuest> guestOpt = reunionGuestRepository.findByEmailAndEventId(
+                    intent.getReceiptEmail(), eventId
+            );
+
+            if (guestOpt.isPresent()) {
+                ReunionGuest guest = guestOpt.get();
+                guest.setPaid(true);
+                reunionGuestRepository.save(guest);
+                System.out.println("✅ Reunion guest marked as paid: " + guest.getEmail());
+            } else {
+                System.out.println("❌ Reunion guest not found for payment.");
+            }
+
+        } catch (Exception e) {
+            System.out.println("❌ Error confirming reunion payment: " + e.getMessage());
+        }
+    }
+
+
 
     public void confirmPayment(String paymentIntentId) {
         try {
