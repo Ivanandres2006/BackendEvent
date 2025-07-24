@@ -37,6 +37,9 @@ public class TicketService {
     @Autowired
     private PromoterSaleRepository promoterSaleRepository;
 
+    @Autowired
+    private ReunionGuestRepository reunionGuestRepository;
+
 
     @Value("${stripe.secret.key}")
     private String stripeSecretKey;
@@ -171,6 +174,50 @@ public class TicketService {
         response.put("clientSecret", intent.getClientSecret());
         return response;
     }
+
+    public Map<String, Object> createReunionCheckout(
+            Long userId,
+            Long eventId,
+            String email
+    ) throws StripeException {
+
+        Optional<User> userOpt = userRepository.findById(userId);
+        Optional<Event> eventOpt = eventRepository.findById(eventId);
+
+        if (userOpt.isEmpty() || eventOpt.isEmpty()) {
+            throw new IllegalArgumentException("Invalid user or event ID");
+        }
+
+        User user = userOpt.get();
+        Event event = eventOpt.get();
+
+        List<ReunionGuest> guests = reunionGuestRepository.findByEventId(eventId);
+        int totalGuests = guests.size() + 1;
+        double perGuestAmount = event.getBudgetGoal() / totalGuests;
+        long amount = (long) (perGuestAmount * 100);
+
+        // ✅ Create PaymentIntent
+        PaymentIntentCreateParams intentParams = PaymentIntentCreateParams.builder()
+                .setAmount(amount)
+                .setCurrency("usd")
+                .setReceiptEmail(email)
+                .putMetadata("userId", String.valueOf(userId))
+                .putMetadata("eventId", String.valueOf(eventId))
+                .putMetadata("type", "reunion")
+                .setAutomaticPaymentMethods(
+                        PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
+                                .setEnabled(true)
+                                .build()
+                )
+                .build();
+
+        PaymentIntent intent = PaymentIntent.create(intentParams);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("clientSecret", intent.getClientSecret());
+        return response;
+    }
+
 
     public void confirmPayment(String paymentIntentId) {
         try {

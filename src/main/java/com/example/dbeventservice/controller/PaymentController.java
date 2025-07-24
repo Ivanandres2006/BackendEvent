@@ -1,5 +1,6 @@
 package com.example.dbeventservice.controller;
 
+import com.example.dbeventservice.auth.jwt.UserDetailsImpl;
 import com.example.dbeventservice.service.ResalePaymentService;
 import com.example.dbeventservice.service.TicketService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -13,10 +14,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -74,5 +78,25 @@ public class PaymentController {
             return ResponseEntity.badRequest().body("Webhook error: " + e.getMessage());
         }
     }
+
+    @PostMapping("/reunion-checkout")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<?> reunionCheckout(
+            @RequestParam Long eventId,
+            @RequestParam String email,
+            @AuthenticationPrincipal UserDetailsImpl userDetails
+    ) {
+        try {
+            Map<String, Object> response = ticketService.createReunionCheckout(
+                    userDetails.getId(),
+                    eventId,
+                    email
+            );
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
 }
 
