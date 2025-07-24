@@ -80,7 +80,6 @@ public class PaymentController {
     }
 
     @PostMapping("/reunion-checkout")
-    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<?> reunionCheckout(
             @RequestParam Long eventId,
             @RequestParam String email,
