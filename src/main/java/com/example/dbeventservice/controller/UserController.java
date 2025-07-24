@@ -58,6 +58,14 @@ public class UserController {
         ));
     }
 
+    // UserController.java
+    @GetMapping("/search-usernames")
+    public ResponseEntity<List<String>> searchUsernames(@RequestParam String q) {
+        List<String> results = userRepository.findUsernamesStartingWith(q);
+        return ResponseEntity.ok(results);
+    }
+
+
     @Getter
     @AllArgsConstructor
     static class UserResponse {

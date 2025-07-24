@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -24,5 +25,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("UPDATE User u SET u.canCreateEvents = :status WHERE u.id = :userId")
     void updateEventCreationPermission(@Param("userId") Long userId, @Param("status") boolean status);
 
+    // UserRepository.java
+    @Query("SELECT u.username FROM User u WHERE LOWER(u.username) LIKE LOWER(CONCAT(:query, '%'))")
+    List<String> findUsernamesStartingWith(@Param("query") String query);
 
 }

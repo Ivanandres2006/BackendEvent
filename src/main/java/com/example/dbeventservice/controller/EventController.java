@@ -156,9 +156,13 @@ public class EventController {
 
             if (req.guests != null) {
                 for (ReunionGuestDTO g : req.guests) {
+                    Optional<User> userOpt = userRepository.findByUsername(g.username);
+                    if (userOpt.isEmpty()) continue;
+
                     ReunionGuest guest = new ReunionGuest();
-                    guest.setName(g.name);
-                    guest.setEmail(g.email);
+                    guest.setUsername(user.getUsername());
+                    guest.setEmail(user.getEmail()); // 👈 Get email from user
+                    guest.setName(user.getFirstName() + " " + user.getLastName()); // Optional
                     guest.setPaid(g.paid);
                     guest.setEvent(event);
                     reunionGuestRepository.save(guest);
@@ -166,6 +170,7 @@ public class EventController {
                 }
             }
         }
+
 
 
         if (req.ticketTiers != null && !req.ticketTiers.isEmpty()) {
@@ -424,9 +429,9 @@ public class EventController {
     @Getter
     @Setter
     static class ReunionGuestDTO {
-        public String name;
-        public String email;
+        public String username; // 👈 Required
         public boolean paid;
     }
+
 
 }

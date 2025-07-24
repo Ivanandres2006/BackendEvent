@@ -15,8 +15,9 @@ public class ReunionGuest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String name;
-    private String email;
+    private String username; // 👈 NEW
+    private String name;     // Optional display name
+    private String email;    // Still store the email
     private boolean paid;
 
     @Column(nullable = false)
@@ -26,5 +27,5 @@ public class ReunionGuest {
     @ManyToOne
     @JoinColumn(name = "event_id", nullable = false)
     private Event event;
-
 }
+
