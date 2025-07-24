@@ -59,20 +59,15 @@ public class PaymentController {
 
                 System.out.println("✅ Webhook PaymentIntent ID: " + paymentIntentId);
 
-                if (metadata.has("eventId")) {
-                    ticketService.confirmPayment(paymentIntentId);
+                if (metadata.has("type") && "reunion".equals(metadata.get("type").asText())) {
+                    ticketService.confirmReunionPayment(paymentIntentId); // ✅ reunion payments
                 } else if (metadata.has("resalePostId")) {
-                    resalePaymentService.confirmResalePayment(paymentIntentId);
+                    resalePaymentService.confirmResalePayment(paymentIntentId); // ✅ resale
+                } else if (metadata.has("eventId")) {
+                    ticketService.confirmPayment(paymentIntentId); // ✅ normal tickets
                 } else {
                     System.out.println("⚠️ Unknown payment intent type. Skipping.");
                 }
-
-                if (metadata.has("eventId") && metadata.has("type") && "reunion".equals(metadata.get("type").asText())) {
-                    ticketService.confirmReunionPayment(paymentIntentId);
-                } else if (metadata.has("eventId")) {
-                    ticketService.confirmPayment(paymentIntentId);
-                }
-
             }
 
             return ResponseEntity.ok("Webhook processed");
