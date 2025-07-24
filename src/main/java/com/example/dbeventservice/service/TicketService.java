@@ -202,6 +202,7 @@ public class TicketService {
                 .setCurrency("usd")
                 .setReceiptEmail(email)
                 .putMetadata("userId", String.valueOf(userId))
+                .putMetadata("username", user.getUsername()) // ✅ ADD THIS
                 .putMetadata("eventId", String.valueOf(eventId))
                 .putMetadata("type", "reunion")
                 .setAutomaticPaymentMethods(
@@ -234,10 +235,13 @@ public class TicketService {
             Long userId = Long.parseLong(userIdStr);
             Long eventId = Long.parseLong(eventIdStr);
 
-            // ✅ Find guest and mark as paid
-            Optional<ReunionGuest> guestOpt = reunionGuestRepository.findByEmailAndEventId(
-                    intent.getReceiptEmail(), eventId
+            String username = metadata.get("username");
+
+            Optional<ReunionGuest> guestOpt = reunionGuestRepository.findByUsernameAndEventId(
+                    username, eventId
             );
+
+
 
             if (guestOpt.isPresent()) {
                 ReunionGuest guest = guestOpt.get();
