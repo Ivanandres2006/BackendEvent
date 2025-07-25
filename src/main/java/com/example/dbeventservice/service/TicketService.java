@@ -1,5 +1,6 @@
 // ✅ UPDATED TicketService.java with ALL fixes
 package com.example.dbeventservice.service;
+import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -223,14 +224,13 @@ public class TicketService {
         return response;
     }
 
+    @Transactional
     public void confirmReunionPayment(String paymentIntentId) {
         try {
             logger.info("📨 Starting confirmReunionPayment for intentId={}", paymentIntentId);
 
             PaymentIntent intent = PaymentIntent.retrieve(paymentIntentId);
             Map<String, String> metadata = intent.getMetadata();
-
-            logger.info("🧾 Metadata: {}", metadata);
 
             String userIdStr = metadata.get("userId");
             String eventIdStr = metadata.get("eventId");
@@ -244,9 +244,6 @@ public class TicketService {
             Long eventId = Long.parseLong(eventIdStr);
 
             logger.info("🔎 Searching for ReunionGuest username={} in eventId={}", username, eventId);
-
-            List<ReunionGuest> guests = reunionGuestRepository.findByEventId(eventId);
-            logger.info("👥 Guests in event: {}", guests.stream().map(ReunionGuest::getUsername).toList());
 
             Optional<ReunionGuest> guestOpt = reunionGuestRepository.findByUsernameIgnoreCaseAndEventId(username, eventId);
             if (guestOpt.isPresent()) {
