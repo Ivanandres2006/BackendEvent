@@ -58,8 +58,9 @@ public class PaymentController {
                 JsonNode metadata = paymentIntentData.path("metadata");
 
                 System.out.println("✅ Webhook PaymentIntent ID: " + paymentIntentId);
+                System.out.println("🔍 Metadata received: " + metadata.toPrettyString());
 
-                if (metadata.has("type") && "reunion".equals(metadata.get("type").asText())) {
+                if (metadata.has("type") && "reunion".equalsIgnoreCase(metadata.get("type").asText().trim())) {
                     ticketService.confirmReunionPayment(paymentIntentId); // ✅ reunion payments
                 } else if (metadata.has("resalePostId")) {
                     resalePaymentService.confirmResalePayment(paymentIntentId); // ✅ resale
@@ -80,6 +81,7 @@ public class PaymentController {
             return ResponseEntity.badRequest().body("Webhook error: " + e.getMessage());
         }
     }
+
 
     @PostMapping("/reunion-checkout")
     public ResponseEntity<?> reunionCheckout(
