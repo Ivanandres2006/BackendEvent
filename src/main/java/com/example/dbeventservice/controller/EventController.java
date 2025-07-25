@@ -299,6 +299,8 @@ public class EventController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    // ... (keep other parts of EventController unchanged)
+
     @PutMapping("/{id}")
     public ResponseEntity<?> updateEvent(
             @AuthenticationPrincipal UserDetailsImpl userDetails,
@@ -310,31 +312,78 @@ public class EventController {
                 return ResponseEntity.status(403).body("Unauthorized");
             }
 
-            // 📝 Update main event fields
-            event.setTitle(req.title);
-            event.setDescription(req.description);
-            event.setLocation(req.location);
-            if (req.dateTime != null) {
-                String dateTimeStr = req.dateTime.toString().replace(" ", "T");
-                event.setDateTime(LocalDateTime.parse(dateTimeStr));
-            }
-            event.setImageUrl(req.imageUrl);
-            event.setState(req.state);
-            event.setAddress(req.address);
-            event.setCountry(req.country);
-            event.setLatitude(req.latitude);
-            event.setLongitude(req.longitude);
+            // ✅ Only update fields that are present and different
+            if (req.title != null && !req.title.equals(event.getTitle())) event.setTitle(req.title);
+            if (req.description != null && !req.description.equals(event.getDescription())) event.setDescription(req.description);
+            if (req.location != null && !req.location.equals(event.getLocation())) event.setLocation(req.location);
+            if (req.dateTime != null && !req.dateTime.equals(event.getDateTime())) event.setDateTime(req.dateTime);
+            if (req.imageUrl != null && !req.imageUrl.equals(event.getImageUrl())) event.setImageUrl(req.imageUrl);
+            if (req.state != null && !req.state.equals(event.getState())) event.setState(req.state);
+            if (req.address != null && !req.address.equals(event.getAddress())) event.setAddress(req.address);
+            if (req.country != null && !req.country.equals(event.getCountry())) event.setCountry(req.country);
+            if (req.latitude != null && !req.latitude.equals(event.getLatitude())) event.setLatitude(req.latitude);
+            if (req.longitude != null && !req.longitude.equals(event.getLongitude())) event.setLongitude(req.longitude);
+            if (req.zelleEmail != null && !req.zelleEmail.equals(event.getZelleEmail())) event.setZelleEmail(req.zelleEmail);
+            if (req.zellePhone != null && !req.zellePhone.equals(event.getZellePhone())) event.setZellePhone(req.zellePhone);
+            event.setAllowPagoMovil(req.allowPagoMovil);
+            event.setAllowCash(req.allowCash);
+            if (req.pagoMovilPhone != null && !req.pagoMovilPhone.equals(event.getPagoMovilPhone())) event.setPagoMovilPhone(req.pagoMovilPhone);
+            if (req.pagoMovilCi != null && !req.pagoMovilCi.equals(event.getPagoMovilCi())) event.setPagoMovilCi(req.pagoMovilCi);
+            if (req.pagoMovilBank != null && !req.pagoMovilBank.equals(event.getPagoMovilBank())) event.setPagoMovilBank(req.pagoMovilBank);
+            if (req.cashNote != null && !req.cashNote.equals(event.getCashNote())) event.setCashNote(req.cashNote);
 
-            // 🎟 Update ticket tiers (replace all)
+            if ("reunion".equalsIgnoreCase(event.getType())) {
+                if (req.budgetGoal != null && !req.budgetGoal.equals(event.getBudgetGoal())) event.setBudgetGoal(req.budgetGoal);
+                if (req.budgetPurpose != null && !req.budgetPurpose.equals(event.getBudgetPurpose())) event.setBudgetPurpose(req.budgetPurpose);
+
+                // ✅ Update reunion guests
+                if (req.guests != null) {
+                    Set<String> incomingUsernames = req.guests.stream().map(g -> g.username.toLowerCase()).collect(Collectors.toSet());
+                    List<ReunionGuest> existingGuests = new ArrayList<>(event.getReunionGuests());
+
+                    // Remove guests not in the new list
+                    for (ReunionGuest guest : existingGuests) {
+                        if (!incomingUsernames.contains(guest.getUsername().toLowerCase())) {
+                            reunionGuestRepository.delete(guest);
+                        }
+                    }
+
+                    Set<String> seen = new HashSet<>();
+                    for (ReunionGuestDTO dto : req.guests) {
+                        if (!seen.add(dto.username.toLowerCase())) continue;
+
+                        ReunionGuest guest = event.getReunionGuests().stream()
+                                .filter(g -> g.getUsername().equalsIgnoreCase(dto.username))
+                                .findFirst()
+                                .orElse(new ReunionGuest());
+
+                        Optional<User> userOpt = userRepository.findByUsername(dto.username);
+                        if (userOpt.isEmpty()) continue;
+
+                        User user = userOpt.get();
+                        guest.setUsername(user.getUsername());
+                        guest.setEmail(user.getEmail());
+                        guest.setName(user.getFirstName() + " " + user.getLastName());
+                        guest.setPaid(dto.paid);
+                        guest.setEvent(event);
+
+                        reunionGuestRepository.save(guest);
+                        event.getReunionGuests().add(guest);
+                    }
+                }
+            }
+
+            // ✅ Update ticket tiers only if present
             if (req.ticketTiers != null) {
+                Set<TicketTier> existingTiers = new HashSet<>(event.getTicketTiers());
                 Set<TicketTier> updatedTiers = new HashSet<>();
 
-                for (EventController.TicketTierRequest tierReq : req.ticketTiers) {
+                for (TicketTierRequest tierReq : req.ticketTiers) {
                     TicketTier tier;
 
                     if (tierReq.id != null && tierReq.id != 0) {
-                        // try to fetch existing tier
-                        tier = ticketTierRepository.findById(tierReq.id).orElse(new TicketTier());
+                        tier = ticketTierRepository.findById(tierReq.id).orElse(null);
+                        if (tier == null) continue;
                     } else {
                         tier = new TicketTier();
                     }
@@ -347,23 +396,34 @@ public class EventController {
                     tier.setEndTime(tierReq.endTime);
                     tier.setForceOpen(tierReq.forceOpen);
                     tier.setEvent(event);
-                    event.setZelleEmail(req.zelleEmail);
-                    event.setZellePhone(req.zellePhone);
-                    event.setAllowPagoMovil(req.allowPagoMovil);
-                    event.setAllowCash(req.allowCash);
-                    event.setPagoMovilPhone(req.pagoMovilPhone);
-                    event.setPagoMovilCi(req.pagoMovilCi);
-                    event.setPagoMovilBank(req.pagoMovilBank);
-                    event.setCashNote(req.cashNote);
+
                     updatedTiers.add(tier);
                 }
 
-                event.getTicketTiers().clear(); // keep same reference
+                Set<Long> incomingIds = req.ticketTiers.stream()
+                        .map(t -> t.id)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
+
+                Set<TicketTier> tiersToKeep = existingTiers.stream()
+                        .filter(t -> incomingIds.contains(t.getId()))
+                        .collect(Collectors.toSet());
+
+                Set<TicketTier> tiersToDelete = existingTiers.stream()
+                        .filter(t -> !incomingIds.contains(t.getId()))
+                        .collect(Collectors.toSet());
+
+                event.getTicketTiers().clear();
+                event.getTicketTiers().addAll(tiersToKeep);
                 event.getTicketTiers().addAll(updatedTiers);
+
+                ticketTierRepository.saveAll(updatedTiers);
+                ticketTierRepository.deleteAll(tiersToDelete);
             }
 
             eventRepository.save(event);
-            return ResponseEntity.ok(event); // ✅ Send back updated event
+            return ResponseEntity.ok(event);
+
         }).orElse(ResponseEntity.notFound().build());
     }
 
