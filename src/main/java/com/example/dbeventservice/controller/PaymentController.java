@@ -107,7 +107,9 @@ public class PaymentController {
     @PutMapping("/events/{eventId}/update-guest")
     public ResponseEntity<String> updateGuestPaidStatus(
             @PathVariable Long eventId,
-            @RequestBody GuestUpdateRequest request) {
+            @RequestBody GuestUpdateRequest request,
+            @AuthenticationPrincipal UserDetailsImpl userDetails // ✅ REQUIRED TO MAKE TOKEN WORK
+    ) {
         try {
             Optional<ReunionGuest> guestOpt = reunionGuestRepository.findByEmailAndEventId(request.getEmail(), eventId);
             if (guestOpt.isPresent()) {
@@ -122,6 +124,7 @@ public class PaymentController {
             return ResponseEntity.badRequest().body("Error updating guest: " + e.getMessage());
         }
     }
+
 
     // Inner class for request body
     static class GuestUpdateRequest {
