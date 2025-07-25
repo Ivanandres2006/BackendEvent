@@ -44,7 +44,10 @@ public class WebSecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // ✅ Place webhook matcher at the top
-                        .requestMatchers("/api/payments/webhook").permitAll()
+                        .requestMatchers("/api/payments/webhook",
+                                "/api/payments/reunion-checkout",
+                                "/api/payments/events/{eventId}/update-guest"
+                                ).permitAll()
                         // ✅ Your other public endpoints
                         .requestMatchers(
                                 "/auth/login",
