@@ -314,7 +314,10 @@ public class EventController {
             event.setTitle(req.title);
             event.setDescription(req.description);
             event.setLocation(req.location);
-            event.setDateTime(req.dateTime);
+            if (req.dateTime != null) {
+                String dateTimeStr = req.dateTime.toString().replace(" ", "T");
+                event.setDateTime(LocalDateTime.parse(dateTimeStr));
+            }
             event.setImageUrl(req.imageUrl);
             event.setState(req.state);
             event.setAddress(req.address);
