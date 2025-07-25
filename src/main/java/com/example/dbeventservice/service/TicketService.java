@@ -227,50 +227,44 @@ public class TicketService {
     @Transactional
     public void confirmReunionPayment(String paymentIntentId) {
         try {
-            logger.info("📨 Starting confirmReunionPayment for intentId={}", paymentIntentId);
-
             PaymentIntent intent = PaymentIntent.retrieve(paymentIntentId);
             Map<String, String> metadata = intent.getMetadata();
 
-            String userIdStr = metadata.get("userId");
-            String eventIdStr = metadata.get("eventId");
             String usernameRaw = metadata.get("username");
+            String eventIdStr = metadata.get("eventId");
 
-            if (userIdStr == null || eventIdStr == null || usernameRaw == null) {
-                logger.warn("⚠️ Missing metadata: userId={}, eventId={}, username={}", userIdStr, eventIdStr, usernameRaw);
+            if (usernameRaw == null || eventIdStr == null) return;
+
+            String usernameNormalized = usernameRaw.trim().toLowerCase();
+            Long eventId = Long.parseLong(eventIdStr);
+
+            // Try normal repo method
+            Optional<ReunionGuest> guestOpt = reunionGuestRepository.findByUsernameIgnoreCaseAndEventId(usernameNormalized, eventId);
+
+            if (guestOpt.isPresent()) {
+                ReunionGuest guest = guestOpt.get();
+                guest.setPaid(true);
+                guest.setAttending(true);
+                reunionGuestRepository.saveAndFlush(guest);
                 return;
             }
 
-            String normalizedUsername = usernameRaw.trim().toLowerCase();
-            Long eventId = Long.parseLong(eventIdStr);
-
-            logger.info("🔍 Normalized username='{}', eventId={}", normalizedUsername, eventId);
-
-            List<ReunionGuest> guests = reunionGuestRepository.findByEventId(eventId);
-            for (ReunionGuest g : guests) {
-                if (g.getUsername() == null) continue;
-
-                String dbUsername = g.getUsername().trim().toLowerCase();
-                logger.info("👀 Comparing to DB username='{}'", dbUsername);
-
-                if (dbUsername.equals(normalizedUsername)) {
-                    g.setPaid(true);
-                    g.setAttending(true);
-                    reunionGuestRepository.save(g);
-                    logger.info("✅ Reunion payment confirmed for guest '{}'", g.getUsername());
+            // 🔁 Fallback: loop through guests and match manually
+            List<ReunionGuest> allGuests = reunionGuestRepository.findByEventId(eventId);
+            for (ReunionGuest guest : allGuests) {
+                if (guest.getUsername() != null && guest.getUsername().trim().toLowerCase().equals(usernameNormalized)) {
+                    guest.setPaid(true);
+                    guest.setAttending(true);
+                    reunionGuestRepository.saveAndFlush(guest);
                     return;
                 }
             }
 
-            logger.warn("❌ ReunionGuest NOT FOUND: username='{}' in eventId={}", normalizedUsername, eventId);
-            logger.warn("🧪 Guests in DB: {}", guests.stream()
-                    .map(rg -> rg.getUsername() == null ? "null" : rg.getUsername().trim().toLowerCase())
-                    .toList());
-
-        } catch (Exception e) {
-            logger.error("❌ Error during confirmReunionPayment: {}", e.getMessage(), e);
+        } catch (Exception ignored) {
+            // silent failure to avoid webhook crash
         }
     }
+
 
 
     public void confirmPayment(String paymentIntentId) {
