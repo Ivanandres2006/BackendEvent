@@ -234,33 +234,42 @@ public class TicketService {
 
             String userIdStr = metadata.get("userId");
             String eventIdStr = metadata.get("eventId");
-            String username = metadata.get("username");
+            String usernameRaw = metadata.get("username");
 
-            if (userIdStr == null || eventIdStr == null || username == null) {
-                logger.warn("⚠️ Missing metadata: userId={}, eventId={}, username={}", userIdStr, eventIdStr, username);
+            if (userIdStr == null || eventIdStr == null || usernameRaw == null) {
+                logger.warn("⚠️ Missing metadata: userId={}, eventId={}, username={}", userIdStr, eventIdStr, usernameRaw);
                 return;
             }
 
+            String username = usernameRaw.trim().toLowerCase(); // ✅ normalize input
             Long eventId = Long.parseLong(eventIdStr);
 
-            logger.info("🔎 Searching for ReunionGuest username={} in eventId={}", username, eventId);
+            logger.info("🔍 Searching for ReunionGuest username='{}' (normalized) in eventId={}", username, eventId);
 
             Optional<ReunionGuest> guestOpt = reunionGuestRepository.findByUsernameIgnoreCaseAndEventId(username, eventId);
+
             if (guestOpt.isPresent()) {
                 ReunionGuest guest = guestOpt.get();
                 guest.setPaid(true);
                 guest.setAttending(true);
-                reunionGuestRepository.save(guest);
-
-                logger.info("✅ Payment marked as paid for ReunionGuest: {}", username);
+                reunionGuestRepository.saveAndFlush(guest); // ✅ force write
+                logger.info("✅ Reunion payment confirmed for guest '{}'", guest.getUsername());
             } else {
-                logger.warn("❌ ReunionGuest NOT found for username={} and eventId={}", username, eventId);
+                // Debug fallback: print all usernames to understand mismatch
+                List<ReunionGuest> allGuests = reunionGuestRepository.findByEventId(eventId);
+                List<String> debugUsernames = allGuests.stream()
+                        .map(ReunionGuest::getUsername)
+                        .map(s -> s == null ? "null" : s.trim().toLowerCase())
+                        .toList();
+
+                logger.warn("❌ Guest NOT found. Expected username='{}'. Guests in DB (normalized): {}", username, debugUsernames);
             }
 
         } catch (Exception e) {
             logger.error("❌ Error during confirmReunionPayment: {}", e.getMessage(), e);
         }
     }
+
 
     public void confirmPayment(String paymentIntentId) {
         try {
