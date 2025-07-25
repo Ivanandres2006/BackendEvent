@@ -226,34 +226,29 @@ public class TicketService {
 
             String userIdStr = metadata.get("userId");
             String eventIdStr = metadata.get("eventId");
+            String username = metadata.get("username");
 
-            if (userIdStr == null || eventIdStr == null) {
+            if (userIdStr == null || eventIdStr == null || username == null) {
                 System.out.println("⚠️ Reunion payment missing metadata.");
                 return;
             }
 
-            Long userId = Long.parseLong(userIdStr);
             Long eventId = Long.parseLong(eventIdStr);
 
-            String username = metadata.get("username");
-
-            Optional<ReunionGuest> guestOpt = reunionGuestRepository.findByUsernameAndEventId(
-                    username, eventId
-            );
-
-
-
+            Optional<ReunionGuest> guestOpt = reunionGuestRepository.findByUsernameAndEventId(username, eventId);
             if (guestOpt.isPresent()) {
                 ReunionGuest guest = guestOpt.get();
-                guest.setPaid(true);
-                reunionGuestRepository.save(guest);
-                System.out.println("✅ Reunion guest marked as paid: " + guest.getEmail());
+                guest.setPaid(true);                    // ✅ mark as paid
+                guest.setAttending(true);               // (optional) mark as attending
+                reunionGuestRepository.save(guest);     // ✅ persist the update
+
+                System.out.println("✅ Reunion payment saved for: " + username);
             } else {
-                System.out.println("❌ Reunion guest not found for payment.");
+                System.out.println("⚠️ ReunionGuest not found for username=" + username + ", eventId=" + eventId);
             }
 
         } catch (Exception e) {
-            System.out.println("❌ Error confirming reunion payment: " + e.getMessage());
+            System.out.println("❌ confirmReunionPayment error: " + e.getMessage());
         }
     }
 
