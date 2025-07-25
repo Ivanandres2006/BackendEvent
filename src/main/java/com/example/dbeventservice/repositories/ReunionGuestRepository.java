@@ -12,5 +12,6 @@ public interface ReunionGuestRepository extends JpaRepository<ReunionGuest, Long
 
     Optional<ReunionGuest> findByEmailIgnoreCaseAndEventId(String email, Long eventId);
 
-    Optional<ReunionGuest> findByEmailAndEventId(String email, Long eventId); // Added method
+    Optional<ReunionGuest> findByUsernameIgnoreCaseAndEventId(String username, Long eventId); // ✅ RESTORE THIS LINE
 }
+
