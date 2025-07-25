@@ -1,5 +1,7 @@
 // ✅ UPDATED TicketService.java with ALL fixes
 package com.example.dbeventservice.service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.example.dbeventservice.model.*;
 import com.example.dbeventservice.model.Enum.TicketStatus;
@@ -39,6 +41,8 @@ public class TicketService {
 
     @Autowired
     private ReunionGuestRepository reunionGuestRepository;
+
+    private static final Logger logger = LoggerFactory.getLogger(TicketService.class);
 
 
     @Value("${stripe.secret.key}")
@@ -221,28 +225,28 @@ public class TicketService {
 
     public void confirmReunionPayment(String paymentIntentId) {
         try {
-            System.out.println("📨 Starting confirmReunionPayment for intentId=" + paymentIntentId);
+            logger.info("📨 Starting confirmReunionPayment for intentId={}", paymentIntentId);
 
             PaymentIntent intent = PaymentIntent.retrieve(paymentIntentId);
             Map<String, String> metadata = intent.getMetadata();
 
-            System.out.println("🧾 Metadata: " + metadata);
+            logger.info("🧾 Metadata: {}", metadata);
 
             String userIdStr = metadata.get("userId");
             String eventIdStr = metadata.get("eventId");
             String username = metadata.get("username");
 
             if (userIdStr == null || eventIdStr == null || username == null) {
-                System.out.println("⚠️ Reunion payment missing metadata. userId=" + userIdStr + ", eventId=" + eventIdStr + ", username=" + username);
+                logger.warn("⚠️ Missing metadata: userId={}, eventId={}, username={}", userIdStr, eventIdStr, username);
                 return;
             }
 
             Long eventId = Long.parseLong(eventIdStr);
 
-            System.out.println("🔎 Looking for ReunionGuest username=" + username + ", eventId=" + eventId);
+            logger.info("🔎 Searching for ReunionGuest username={} in eventId={}", username, eventId);
 
             List<ReunionGuest> guests = reunionGuestRepository.findByEventId(eventId);
-            System.out.println("👥 All guests in event: " + guests.stream().map(ReunionGuest::getUsername).toList());
+            logger.info("👥 Guests in event: {}", guests.stream().map(ReunionGuest::getUsername).toList());
 
             Optional<ReunionGuest> guestOpt = reunionGuestRepository.findByUsernameAndEventId(username, eventId);
             if (guestOpt.isPresent()) {
@@ -251,18 +255,15 @@ public class TicketService {
                 guest.setAttending(true);
                 reunionGuestRepository.save(guest);
 
-                System.out.println("✅ Reunion payment saved for: " + username);
+                logger.info("✅ Payment marked as paid for ReunionGuest: {}", username);
             } else {
-                System.out.println("❌ ReunionGuest not found for username=" + username + ", eventId=" + eventId);
+                logger.warn("❌ ReunionGuest NOT found for username={} and eventId={}", username, eventId);
             }
 
         } catch (Exception e) {
-            System.out.println("❌ confirmReunionPayment error: " + e.getMessage());
+            logger.error("❌ Error during confirmReunionPayment: {}", e.getMessage(), e);
         }
     }
-
-
-
 
     public void confirmPayment(String paymentIntentId) {
         try {
