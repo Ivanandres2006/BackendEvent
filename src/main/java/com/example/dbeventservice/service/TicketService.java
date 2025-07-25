@@ -248,7 +248,7 @@ public class TicketService {
             List<ReunionGuest> guests = reunionGuestRepository.findByEventId(eventId);
             logger.info("👥 Guests in event: {}", guests.stream().map(ReunionGuest::getUsername).toList());
 
-            Optional<ReunionGuest> guestOpt = reunionGuestRepository.findByUsernameAndEventId(username, eventId);
+            Optional<ReunionGuest> guestOpt = reunionGuestRepository.findByUsernameIgnoreCaseAndEventId(username, eventId);
             if (guestOpt.isPresent()) {
                 ReunionGuest guest = guestOpt.get();
                 guest.setPaid(true);
