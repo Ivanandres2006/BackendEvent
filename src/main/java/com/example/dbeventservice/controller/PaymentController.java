@@ -3,8 +3,6 @@ package com.example.dbeventservice.controller;
 import com.example.dbeventservice.auth.jwt.UserDetailsImpl;
 import com.example.dbeventservice.service.ResalePaymentService;
 import com.example.dbeventservice.service.TicketService;
-import com.example.dbeventservice.repositories.ReunionGuestRepository; // Add this import
-import com.example.dbeventservice.model.ReunionGuest; // Add this import
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stripe.exception.SignatureVerificationException;
@@ -33,12 +31,10 @@ public class PaymentController {
 
     private final TicketService ticketService;
     private final ResalePaymentService resalePaymentService;
-    private final ReunionGuestRepository reunionGuestRepository; // Add this
 
     @Value("${stripe.webhook.secret}")
     private String stripeWebhookSecret;
 
-    // Existing webhook handler
     @PostMapping("/webhook")
     public ResponseEntity<String> handleStripeWebhook(HttpServletRequest request) {
         try {
@@ -51,6 +47,7 @@ public class PaymentController {
             }
 
             Event event = Webhook.constructEvent(payload, sigHeader, stripeWebhookSecret);
+            System.out.println("✅ Webhook type: " + event.getType());
 
             if ("payment_intent.succeeded".equals(event.getType())) {
                 ObjectMapper objectMapper = new ObjectMapper();
@@ -61,8 +58,9 @@ public class PaymentController {
                 JsonNode metadata = paymentIntentData.path("metadata");
 
                 System.out.println("✅ Webhook PaymentIntent ID: " + paymentIntentId);
+                System.out.println("🔍 Metadata received: " + metadata.toPrettyString());
 
-                if (metadata.has("type") && "reunion".equals(metadata.get("type").asText())) {
+                if (metadata.has("type") && "reunion".equalsIgnoreCase(metadata.get("type").asText().trim())) {
                     ticketService.confirmReunionPayment(paymentIntentId); // ✅ reunion payments
                 } else if (metadata.has("resalePostId")) {
                     resalePaymentService.confirmResalePayment(paymentIntentId); // ✅ resale
@@ -84,7 +82,7 @@ public class PaymentController {
         }
     }
 
-    // Existing reunion checkout
+
     @PostMapping("/reunion-checkout")
     public ResponseEntity<?> reunionCheckout(
             @RequestParam Long eventId,
@@ -103,37 +101,5 @@ public class PaymentController {
         }
     }
 
-    // New endpoint to update guest paid status
-    @PutMapping("/events/{eventId}/update-guest")
-    public ResponseEntity<String> updateGuestPaidStatus(
-            @PathVariable Long eventId,
-            @RequestBody GuestUpdateRequest request,
-            @AuthenticationPrincipal UserDetailsImpl userDetails // ✅ REQUIRED TO MAKE TOKEN WORK
-    ) {
-        try {
-            Optional<ReunionGuest> guestOpt = reunionGuestRepository.findByEmailAndEventId(request.getEmail(), eventId);
-            if (guestOpt.isPresent()) {
-                ReunionGuest guest = guestOpt.get();
-                guest.setPaid(request.isPaid());
-                reunionGuestRepository.save(guest);
-                return ResponseEntity.ok("Guest paid status updated");
-            } else {
-                return ResponseEntity.badRequest().body("Guest not found");
-            }
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Error updating guest: " + e.getMessage());
-        }
-    }
-
-
-    // Inner class for request body
-    static class GuestUpdateRequest {
-        private String email;
-        private boolean paid;
-
-        public String getEmail() { return email; }
-        public void setEmail(String email) { this.email = email; }
-        public boolean isPaid() { return paid; }
-        public void setPaid(boolean paid) { this.paid = paid; }
-    }
 }
+
