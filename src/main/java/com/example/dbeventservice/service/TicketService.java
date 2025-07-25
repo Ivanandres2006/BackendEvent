@@ -255,13 +255,14 @@ public class TicketService {
                 if (guest.getUsername() != null && guest.getUsername().trim().toLowerCase().equals(usernameNormalized)) {
                     guest.setPaid(true);
                     guest.setAttending(true);
-                    reunionGuestRepository.saveAndFlush(guest);
+                    reunionGuestRepository.save(guest);
+                    reunionGuestRepository.flush(); // ✅ Ensure it flushes to DB
                     return;
                 }
             }
 
-        } catch (Exception ignored) {
-            // silent failure to avoid webhook crash
+        } catch (Exception e) {
+            e.printStackTrace(); // ✅ Make sure logs go to stderr
         }
     }
 

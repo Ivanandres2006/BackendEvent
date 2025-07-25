@@ -101,5 +101,11 @@ public class PaymentController {
         }
     }
 
+    @PostMapping("/test-confirm")
+    public ResponseEntity<?> testConfirm(@RequestParam String paymentIntentId) {
+        ticketService.confirmReunionPayment(paymentIntentId);
+        return ResponseEntity.ok("Test done");
+    }
+
 }
 
