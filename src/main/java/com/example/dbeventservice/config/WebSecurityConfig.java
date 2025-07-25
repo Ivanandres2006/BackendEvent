@@ -45,8 +45,7 @@ public class WebSecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // ✅ Place webhook matcher at the top
                         .requestMatchers("/api/payments/webhook",
-                                "/api/payments/reunion-checkout",
-                                "/api/payments/events/{eventId}/update-guest"
+                                "/api/payments/reunion-checkout"
                                 ).permitAll()
                         // ✅ Your other public endpoints
                         .requestMatchers(
