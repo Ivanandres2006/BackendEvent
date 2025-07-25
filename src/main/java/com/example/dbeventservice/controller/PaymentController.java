@@ -1,6 +1,8 @@
 package com.example.dbeventservice.controller;
 
 import com.example.dbeventservice.auth.jwt.UserDetailsImpl;
+import com.example.dbeventservice.model.ReunionGuest;
+import com.example.dbeventservice.repositories.ReunionGuestRepository;
 import com.example.dbeventservice.service.ResalePaymentService;
 import com.example.dbeventservice.service.TicketService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -12,6 +14,7 @@ import com.stripe.model.StripeObject;
 import com.stripe.net.Webhook;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,6 +34,9 @@ public class PaymentController {
 
     private final TicketService ticketService;
     private final ResalePaymentService resalePaymentService;
+
+    @Autowired
+    private final ReunionGuestRepository reunionGuestRepository;
 
     @Value("${stripe.webhook.secret}")
     private String stripeWebhookSecret;
@@ -101,11 +107,27 @@ public class PaymentController {
         }
     }
 
-    @PostMapping("/test-confirm")
-    public ResponseEntity<?> testConfirm(@RequestParam String paymentIntentId) {
-        ticketService.confirmReunionPayment(paymentIntentId);
-        return ResponseEntity.ok("Test done");
+    @PutMapping("/confirm-reunion-paid")
+    public ResponseEntity<?> confirmPaidFromFrontend(
+            @RequestParam Long eventId,
+            @RequestParam String email
+    ) {
+        Optional<ReunionGuest> guestOpt = reunionGuestRepository.findByEmailIgnoreCaseAndEventId(email.trim().toLowerCase(), eventId);
+
+        if (guestOpt.isEmpty()) {
+            return ResponseEntity.badRequest().body("❌ Reunion guest not found.");
+        }
+
+        ReunionGuest guest = guestOpt.get();
+        guest.setPaid(true);
+        guest.setAttending(true);
+        reunionGuestRepository.save(guest);
+        reunionGuestRepository.flush();
+
+        return ResponseEntity.ok("✅ Marked as paid.");
     }
+
+
 
 }
 

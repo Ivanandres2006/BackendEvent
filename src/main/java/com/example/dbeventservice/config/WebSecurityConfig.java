@@ -37,17 +37,11 @@ public class WebSecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .securityMatcher("/**") // Catch all
                 .csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults())
                 .exceptionHandling(e -> e.authenticationEntryPoint(unauthorizedHandler))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // ✅ Place webhook matcher at the top
-                        .requestMatchers("/api/payments/webhook",
-                                "/api/payments/reunion-checkout"
-                                ).permitAll()
-                        // ✅ Your other public endpoints
                         .requestMatchers(
                                 "/auth/login",
                                 "/auth/register",
@@ -62,12 +56,15 @@ public class WebSecurityConfig {
                                 "/auth/refresh",
                                 "/uploads/**",
                                 "/qr/**",
+                                "/api/payments/webhook",
+                                "api/payments/reunion-checkout",
+                                "/api/payments/confirm-reunion-paid",
                                 "/api/chat/image/**",
                                 "/ping",
                                 "/api/waitlist",
                                 "/test-email"
+
                         ).permitAll()
-                        // ✅ Authenticated endpoints
                         .requestMatchers("/auth/validate").authenticated()
                         .anyRequest().authenticated()
                 );
@@ -75,7 +72,6 @@ public class WebSecurityConfig {
         http.addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
-
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig)
