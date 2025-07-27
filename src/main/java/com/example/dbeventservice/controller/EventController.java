@@ -333,34 +333,40 @@ public class EventController {
             if (req.cashNote != null && !req.cashNote.equals(event.getCashNote())) event.setCashNote(req.cashNote);
 
             if ("reunion".equalsIgnoreCase(event.getType())) {
-                if (req.budgetGoal != null && !req.budgetGoal.equals(event.getBudgetGoal())) event.setBudgetGoal(req.budgetGoal);
-                if (req.budgetPurpose != null && !req.budgetPurpose.equals(event.getBudgetPurpose())) event.setBudgetPurpose(req.budgetPurpose);
+                if (req.budgetGoal != null && !req.budgetGoal.equals(event.getBudgetGoal())) {
+                    event.setBudgetGoal(req.budgetGoal);
+                }
+                if (req.budgetPurpose != null && !req.budgetPurpose.equals(event.getBudgetPurpose())) {
+                    event.setBudgetPurpose(req.budgetPurpose);
+                }
 
                 // ✅ Update reunion guests
                 if (req.guests != null) {
-                    Set<String> incomingUsernames = req.guests.stream().map(g -> g.username.toLowerCase()).collect(Collectors.toSet());
-                    List<ReunionGuest> existingGuests = new ArrayList<>(event.getReunionGuests());
+                    Set<String> incomingUsernames = req.guests.stream()
+                            .map(g -> g.username.toLowerCase())
+                            .collect(Collectors.toSet());
 
-                    // Remove guests not in the new list
+                    // Remove guests from DB that are not in the new list
+                    List<ReunionGuest> existingGuests = new ArrayList<>(event.getReunionGuests());
                     for (ReunionGuest guest : existingGuests) {
                         if (!incomingUsernames.contains(guest.getUsername().toLowerCase())) {
                             reunionGuestRepository.delete(guest);
                         }
                     }
 
+                    // 🚨 Clear the list in the Event object to reflect the new state
+                    event.getReunionGuests().clear();
+
                     Set<String> seen = new HashSet<>();
                     for (ReunionGuestDTO dto : req.guests) {
                         if (!seen.add(dto.username.toLowerCase())) continue;
-
-                        ReunionGuest guest = event.getReunionGuests().stream()
-                                .filter(g -> g.getUsername().equalsIgnoreCase(dto.username))
-                                .findFirst()
-                                .orElse(new ReunionGuest());
 
                         Optional<User> userOpt = userRepository.findByUsername(dto.username);
                         if (userOpt.isEmpty()) continue;
 
                         User user = userOpt.get();
+
+                        ReunionGuest guest = new ReunionGuest();
                         guest.setUsername(user.getUsername());
                         guest.setEmail(user.getEmail());
                         guest.setName(user.getFirstName() + " " + user.getLastName());
@@ -368,7 +374,7 @@ public class EventController {
                         guest.setEvent(event);
 
                         reunionGuestRepository.save(guest);
-                        event.getReunionGuests().add(guest);
+                        event.getReunionGuests().add(guest); // 💡 Rebuild the list fresh
                     }
                 }
             }
