@@ -121,16 +121,13 @@ public class PaymentController {
 
         ReunionGuest guest = guestOpt.get();
         guest.setPaid(paid);
-        guest.setAttending(paid); // optional — only attending if paid
+        guest.setAttending(true); // optional — only attending if paid
 
         reunionGuestRepository.save(guest);
         reunionGuestRepository.flush();
 
         return ResponseEntity.ok("✅ Guest payment updated.");
     }
-
-
-
 
 }
 
