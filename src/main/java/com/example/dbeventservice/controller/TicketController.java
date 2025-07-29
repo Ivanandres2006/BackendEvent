@@ -120,17 +120,22 @@ public class TicketController {
         Ticket ticket = ticketOpt.get();
         Event event = ticket.getEvent();
 
-
         if (!event.getCreatedBy().getId().equals(userDetails.getId())) {
             System.out.println("❌ Unauthorized toggle attempt by user: " + userDetails.getId());
             return ResponseEntity.status(403).body(Map.of("error", "Unauthorized"));
         }
 
-        ticket.setPaid(!ticket.isPaid());
+        boolean newPaidValue = !ticket.isPaid();
+        ticket.setPaid(newPaidValue);
+        ticket.setStatus(newPaidValue ? TicketStatus.PAID : TicketStatus.PENDING); // ✅ add this
         ticketRepository.save(ticket);
 
-        return ResponseEntity.ok(Map.of("status", "Payment status updated", "paid", ticket.isPaid()));
+        return ResponseEntity.ok(Map.of(
+                "status", "Payment status updated",
+                "paid", ticket.isPaid()
+        ));
     }
+
 
 
     @GetMapping("/my")
