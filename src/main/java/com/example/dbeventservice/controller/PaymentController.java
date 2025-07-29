@@ -110,7 +110,8 @@ public class PaymentController {
     @PutMapping("/confirm-reunion-paid")
     public ResponseEntity<?> confirmPaidFromFrontend(
             @RequestParam Long eventId,
-            @RequestParam String email
+            @RequestParam String email,
+            @RequestParam boolean paid // ✅ accept the desired value
     ) {
         Optional<ReunionGuest> guestOpt = reunionGuestRepository.findByEmailIgnoreCaseAndEventId(email.trim().toLowerCase(), eventId);
 
@@ -119,13 +120,15 @@ public class PaymentController {
         }
 
         ReunionGuest guest = guestOpt.get();
-        guest.setPaid(true);
-        guest.setAttending(true);
+        guest.setPaid(paid);
+        guest.setAttending(paid); // optional — only attending if paid
+
         reunionGuestRepository.save(guest);
         reunionGuestRepository.flush();
 
-        return ResponseEntity.ok("✅ Marked as paid.");
+        return ResponseEntity.ok("✅ Guest payment updated.");
     }
+
 
 
 
