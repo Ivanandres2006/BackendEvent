@@ -25,24 +25,27 @@ public class ResalePostService {
     private UserRepository userRepository;
 
     public ResalePost createResalePost(Long ticketId, double price, String title, String description, Long userId) {
-        Optional<Ticket> ticketOpt = ticketRepository.findById(ticketId);
-        Optional<User> userOpt = userRepository.findById(userId);
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new IllegalArgumentException("Ticket not found"));
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        if (ticketOpt.isEmpty() || userOpt.isEmpty()) {
-            throw new IllegalArgumentException("Ticket or user not found");
+        if (ticket.getOwner() == null || !ticket.getOwner().getId().equals(userId)) {
+            throw new IllegalArgumentException("You don't own this ticket.");
         }
-
-        Ticket ticket = ticketOpt.get();
-
-        // 🚫 Check if an unsold post already exists for this ticket
-        boolean alreadyPosted = resalePostRepository.existsByTicketAndSoldFalse(ticket);
-        if (alreadyPosted) {
+        if (!ticket.isPaid()) {
+            throw new IllegalArgumentException("Only paid tickets can be listed.");
+        }
+        if (ticket.isUsed()) {
+            throw new IllegalArgumentException("Used tickets cannot be listed.");
+        }
+        if (resalePostRepository.existsByTicketAndSoldFalse(ticket)) {
             throw new IllegalArgumentException("This ticket is already listed for resale.");
         }
 
         ResalePost post = ResalePost.builder()
                 .ticket(ticket)
-                .seller(userOpt.get())
+                .seller(user)
                 .price(price)
                 .title(title)
                 .description(description)
@@ -51,6 +54,7 @@ public class ResalePostService {
 
         return resalePostRepository.save(post);
     }
+
 
 
     public List<ResalePost> getAllAvailablePosts() {

@@ -36,7 +36,7 @@ public class TicketDTO {
         this.tierName = ticket.getTicketTier().getName();
         this.eventTitle = ticket.getEvent().getTitle();
         this.eventId = ticket.getEvent().getId();
-        this.resold = isResold();
+        this.resold = resold;
 
         if (ticket.getOwner() != null) {
             this.buyerFirstName = ticket.getOwner().getFirstName();
