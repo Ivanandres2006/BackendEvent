@@ -120,6 +120,9 @@ public class NotificationController {
 
                 FirebaseApp.initializeApp(options);
                 System.out.println("✅ FirebaseApp initialized successfully.");
+                System.out.println("📛 FirebaseApp name: " + FirebaseApp.getInstance().getName());
+                System.out.println("🌍 FirebaseApp options projectId: " + FirebaseApp.getInstance().getOptions().getProjectId());
+
             }
 
             // ✅ Build and send message
