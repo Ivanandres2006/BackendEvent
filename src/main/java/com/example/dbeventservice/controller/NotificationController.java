@@ -30,6 +30,32 @@ public class NotificationController {
 
     private final FCMTokenRepository tokenRepo;
 
+    @PostConstruct
+    public void initFirebase() {
+        try {
+            if (FirebaseApp.getApps().isEmpty()) {
+                System.out.println("📦 Initializing Firebase manually...");
+                InputStream serviceAccount = getClass().getClassLoader().getResourceAsStream("firebase_key.json");
+
+                if (serviceAccount == null) {
+                    System.out.println("❌ firebase_key.json not found!");
+                    return;
+                }
+
+                FirebaseOptions options = FirebaseOptions.builder()
+                        .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                        .build();
+
+                FirebaseApp.initializeApp(options);
+                System.out.println("✅ Firebase initialized");
+            }
+        } catch (Exception e) {
+            System.out.println("❌ Firebase init error:");
+            e.printStackTrace();
+        }
+    }
+
+
     @PostMapping("/register")
     public ResponseEntity<?> registerToken(@RequestBody Map<String, String> body) {
         String token = body.get("token");
@@ -58,8 +84,8 @@ public class NotificationController {
     public void scheduleAutoNotification() {
         // ⏰ Hora objetivo: HOY 10:00 AM
         LocalDateTime baseTarget = LocalDateTime.now()
-                .withHour(10)
-                .withMinute(0)
+                .withHour(15)
+                .withMinute(22)
                 .withSecond(0)
                 .withNano(0);
 
@@ -82,7 +108,7 @@ public class NotificationController {
                 sendPush(
                         t.getToken(),
                         "🎉 WKND Recordatorio",
-                        "¡El evento es hoy! Nos vemos a la 1 PM"
+                        "Esto es una prueba para noti!"
                 );
             }
         }, delayMs, TimeUnit.MILLISECONDS);
@@ -94,11 +120,16 @@ public class NotificationController {
     @PostMapping("/send-test")
     public ResponseEntity<?> sendTestNotification() {
         List<FCMToken> tokens = tokenRepo.findAll();
+        System.out.println("📡 Sending test notification to " + tokens.size() + " tokens...");
+
         for (FCMToken t : tokens) {
+            System.out.println("🔑 Trying token: " + t.getToken());
             sendPush(t.getToken(), "🎉 WKND", "This is a test notification.");
         }
-        return ResponseEntity.ok("Push sent to all devices");
+
+        return ResponseEntity.ok("Push attempted for all tokens");
     }
+
 
     private void sendPush(String token, String title, String body) {
         System.out.println("🔥 Sending to token: [" + token + "]");
@@ -136,6 +167,7 @@ public class NotificationController {
 
             String response = FirebaseMessaging.getInstance().send(message);
             System.out.println("✅ Notificación enviada: " + response);
+            System.out.println("📲 Push success for token: " + token);
 
         } catch (FirebaseMessagingException e) {
             System.out.println("❌ FCM failed:");
