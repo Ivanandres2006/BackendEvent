@@ -2,6 +2,9 @@ package com.example.dbeventservice.controller;
 
 import com.example.dbeventservice.model.FCMToken;
 import com.example.dbeventservice.repositories.FCMTokenRepository;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.FirebaseOptions;
 import com.google.firebase.messaging.*;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.annotation.RequestBody;
 
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -98,7 +102,27 @@ public class NotificationController {
 
     private void sendPush(String token, String title, String body) {
         System.out.println("🔥 Sending to token: [" + token + "]");
+
         try {
+            // ✅ Ensure Firebase is initialized (fallback if needed)
+            if (FirebaseApp.getApps().isEmpty()) {
+                System.out.println("⚠️ FirebaseApp not initialized. Initializing now...");
+                InputStream serviceAccount = getClass().getClassLoader().getResourceAsStream("firebase_key.json");
+
+                if (serviceAccount == null) {
+                    System.out.println("❌ firebase_key.json not found in resources!");
+                    return;
+                }
+
+                FirebaseOptions options = FirebaseOptions.builder()
+                        .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                        .build();
+
+                FirebaseApp.initializeApp(options);
+                System.out.println("✅ FirebaseApp initialized successfully.");
+            }
+
+            // ✅ Build and send message
             Message message = Message.builder()
                     .setToken(token)
                     .setNotification(Notification.builder()
@@ -119,7 +143,9 @@ public class NotificationController {
             if (e.getMessagingErrorCode() == MessagingErrorCode.UNREGISTERED ||
                     e.getMessagingErrorCode() == MessagingErrorCode.INVALID_ARGUMENT) {
                 System.out.println("🧹 Removing invalid FCM token from DB: " + token);
-                try { tokenRepo.deleteByToken(token); } catch (Exception ignore) {}
+                try {
+                    tokenRepo.deleteByToken(token);
+                } catch (Exception ignore) {}
             }
 
         } catch (Exception e) {
