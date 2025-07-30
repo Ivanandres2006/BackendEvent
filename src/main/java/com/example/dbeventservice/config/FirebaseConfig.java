@@ -6,18 +6,16 @@ import com.google.firebase.FirebaseOptions;
 import jakarta.annotation.PostConstruct;
 import org.springframework.context.annotation.Configuration;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-
 
 @Configuration
 public class FirebaseConfig {
 
     @PostConstruct
     public void init() throws IOException {
-        InputStream serviceAccount = new FileInputStream("src/main/resources/firebase_key.json");
-
+        InputStream serviceAccount =
+                getClass().getClassLoader().getResourceAsStream("firebase_key.json");
 
         if (serviceAccount == null) {
             throw new IOException("❌ firebase_key.json not found in resources!");
