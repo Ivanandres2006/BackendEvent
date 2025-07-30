@@ -16,8 +16,8 @@ public class FirebaseConfig {
 
     @PostConstruct
     public void init() throws IOException {
-        InputStream serviceAccount =
-                getClass().getClassLoader().getResourceAsStream("firebase_key.json");
+        InputStream serviceAccount = new FileInputStream("src/main/resources/firebase_key.json");
+
 
         if (serviceAccount == null) {
             throw new IOException("❌ firebase_key.json not found in resources!");
