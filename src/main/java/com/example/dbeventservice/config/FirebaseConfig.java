@@ -8,14 +8,20 @@ import org.springframework.context.annotation.Configuration;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+
 
 @Configuration
 public class FirebaseConfig {
 
     @PostConstruct
     public void init() throws IOException {
-        FileInputStream serviceAccount =
-                new FileInputStream("eventapp-5b1f5-firebase-adminsdk-fbsvc-3800cf5275.json"); // 👈 pon aquí la ruta correcta
+        InputStream serviceAccount =
+                getClass().getClassLoader().getResourceAsStream("firebase_key.json");
+
+        if (serviceAccount == null) {
+            throw new IOException("❌ firebase_key.json not found in resources!");
+        }
 
         FirebaseOptions options = FirebaseOptions.builder()
                 .setCredentials(GoogleCredentials.fromStream(serviceAccount))
