@@ -60,6 +60,8 @@ public class WebSecurityConfig {
                                 "api/payments/reunion-checkout",
                                 "/api/payments/confirm-reunion-paid",
                                 "/api/chat/image/**",
+                                "api/notifications/register",
+                                "api/notifications/send-test",
                                 "/ping",
                                 "/api/waitlist",
                                 "/test-email"
