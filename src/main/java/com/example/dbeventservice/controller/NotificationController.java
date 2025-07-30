@@ -24,10 +24,13 @@ public class NotificationController {
 
     @PostMapping("/register")
     public ResponseEntity<?> registerToken(@RequestBody String token) {
-        System.out.println("📥 TOKEN RECIBIDO: " + token); // 👈 LOG DE DEBUG
+        System.out.println("📥 TOKEN RECIBIDO: " + token);
 
         if (token == null || token.isBlank())
             return ResponseEntity.badRequest().body("Invalid token");
+
+        // ❗ Elimina las comillas si vienen
+        token = token.replace("\"", "").trim();
 
         FCMToken fcmToken = new FCMToken();
         fcmToken.setToken(token);
@@ -35,6 +38,7 @@ public class NotificationController {
 
         return ResponseEntity.ok("Token saved");
     }
+
 
 
     @PostMapping("/send-test")
