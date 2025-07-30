@@ -51,6 +51,7 @@ public class NotificationController {
     }
 
     private void sendPush(String token, String title, String body) {
+        System.out.println("🔥 Sending to token: [" + token + "]");
         try {
             Message message = Message.builder()
                     .setToken(token)
