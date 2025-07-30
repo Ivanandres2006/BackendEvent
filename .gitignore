@@ -3,6 +3,7 @@ target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+eventapp-5b1f5-firebase-adminsdk-fbsvc-3800cf5275.json
 
 ### STS ###
 .apt_generated
