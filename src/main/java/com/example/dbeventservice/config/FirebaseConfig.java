@@ -21,6 +21,8 @@ public class FirebaseConfig {
             throw new IOException("❌ firebase_key.json not found in resources!");
         }
 
+        System.out.println("✅ Firebase config loaded");
+
         FirebaseOptions options = FirebaseOptions.builder()
                 .setCredentials(GoogleCredentials.fromStream(serviceAccount))
                 .build();
