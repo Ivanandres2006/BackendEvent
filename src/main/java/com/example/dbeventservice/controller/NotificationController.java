@@ -3,6 +3,7 @@ package com.example.dbeventservice.controller;
 import com.example.dbeventservice.model.FCMToken;
 import com.example.dbeventservice.repositories.FCMTokenRepository;
 import com.google.firebase.messaging.*;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import okhttp3.*;
 import org.json.JSONObject;
@@ -11,8 +12,12 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/api/notifications")
@@ -43,6 +48,41 @@ public class NotificationController {
         }
 
         return ResponseEntity.ok("Token saved");
+    }
+
+    @PostConstruct
+    public void scheduleAutoNotification() {
+        // ⏰ Hora objetivo: HOY 10:00 AM
+        LocalDateTime baseTarget = LocalDateTime.now()
+                .withHour(10)
+                .withMinute(0)
+                .withSecond(0)
+                .withNano(0);
+
+        LocalDateTime now = LocalDateTime.now();
+
+        // Definimos la hora final sin reasignar
+        LocalDateTime finalTarget = now.isAfter(baseTarget)
+                ? now.plusMinutes(30)
+                : baseTarget;
+
+        long delayMs = ChronoUnit.MILLIS.between(now, finalTarget);
+
+        System.out.println("⏰ Notificación programada para " + finalTarget);
+
+        // Programa el envío
+        Executors.newSingleThreadScheduledExecutor().schedule(() -> {
+            System.out.println("⏰ Enviando notificación automática: " + finalTarget);
+            List<FCMToken> tokens = tokenRepo.findAll();
+            for (FCMToken t : tokens) {
+                sendPush(
+                        t.getToken(),
+                        "🎉 WKND Recordatorio",
+                        "¡El evento es hoy! Nos vemos a la 1 PM"
+                );
+            }
+        }, delayMs, TimeUnit.MILLISECONDS);
+
     }
 
 
