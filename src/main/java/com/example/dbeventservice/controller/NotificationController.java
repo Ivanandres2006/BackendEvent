@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/notifications")
@@ -23,21 +24,21 @@ public class NotificationController {
     private final FCMTokenRepository tokenRepo;
 
     @PostMapping("/register")
-    public ResponseEntity<?> registerToken(@RequestBody String token) {
+    public ResponseEntity<?> registerToken(@RequestBody Map<String, String> body) {
+        String token = body.get("token");
+
         System.out.println("📥 TOKEN RECIBIDO: " + token);
-
-        if (token == null || token.isBlank())
+        if (token == null || token.isBlank()) {
             return ResponseEntity.badRequest().body("Invalid token");
-
-        // ❗ Elimina las comillas si vienen
-        token = token.replace("\"", "").trim();
+        }
 
         FCMToken fcmToken = new FCMToken();
-        fcmToken.setToken(token);
+        fcmToken.setToken(token.trim());
         tokenRepo.save(fcmToken);
 
         return ResponseEntity.ok("Token saved");
     }
+
 
 
 

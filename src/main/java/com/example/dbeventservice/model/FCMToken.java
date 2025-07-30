@@ -13,7 +13,8 @@ public class FCMToken {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(length = 4096)
+
+    @Column(length = 4096, unique = true)
     private String token;
 
     private LocalDateTime createdAt = LocalDateTime.now();
