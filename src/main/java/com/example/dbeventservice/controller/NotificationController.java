@@ -2,9 +2,7 @@ package com.example.dbeventservice.controller;
 
 import com.example.dbeventservice.model.FCMToken;
 import com.example.dbeventservice.repositories.FCMTokenRepository;
-import com.google.firebase.messaging.FirebaseMessaging;
-import com.google.firebase.messaging.Message;
-import com.google.firebase.messaging.Notification;
+import com.google.firebase.messaging.*;
 import lombok.RequiredArgsConstructor;
 import okhttp3.*;
 import org.json.JSONObject;
@@ -32,13 +30,20 @@ public class NotificationController {
             return ResponseEntity.badRequest().body("Invalid token");
         }
 
-        FCMToken fcmToken = new FCMToken();
-        fcmToken.setToken(token.trim());
-        tokenRepo.save(fcmToken);
+        token = token.trim();
+
+        // Evita duplicados
+        if (tokenRepo.findByToken(token).isEmpty()) {
+            FCMToken fcmToken = new FCMToken();
+            fcmToken.setToken(token);
+            tokenRepo.save(fcmToken);
+            System.out.println("✅ Nuevo token guardado en BD");
+        } else {
+            System.out.println("ℹ️ Token ya existe en BD, no se duplica");
+        }
 
         return ResponseEntity.ok("Token saved");
     }
-
 
 
 
@@ -64,7 +69,21 @@ public class NotificationController {
 
             String response = FirebaseMessaging.getInstance().send(message);
             System.out.println("✅ Notificación enviada: " + response);
+
+        } catch (FirebaseMessagingException e) {
+            System.out.println("❌ FCM failed:");
+            System.out.println("   • Error code: " + e.getMessagingErrorCode());
+            System.out.println("   • HTTP status: " + (e.getHttpResponse() != null ? e.getHttpResponse().getStatusCode() : "n/a"));
+            System.out.println("   • Response body: " + (e.getHttpResponse() != null ? e.getHttpResponse().getContent() : "n/a"));
+
+            if (e.getMessagingErrorCode() == MessagingErrorCode.UNREGISTERED ||
+                    e.getMessagingErrorCode() == MessagingErrorCode.INVALID_ARGUMENT) {
+                System.out.println("🧹 Removing invalid FCM token from DB: " + token);
+                try { tokenRepo.deleteByToken(token); } catch (Exception ignore) {}
+            }
+
         } catch (Exception e) {
+            System.out.println("❌ Unexpected exception while sending push:");
             e.printStackTrace();
         }
     }
