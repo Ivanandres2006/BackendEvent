@@ -29,4 +29,11 @@ public class ResalePost {
     private boolean sold = false;
 
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    @PrePersist
+    public void prePersist() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+    }
 }
