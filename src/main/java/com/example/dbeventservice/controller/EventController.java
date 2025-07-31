@@ -66,7 +66,7 @@ public class EventController {
         }
     }
 
-    @PostMapping("/{eventId}/waitlist")
+    @PostMapping("/{eventId}/waitlist/request")
     public ResponseEntity<?> requestWaitlist(
             @PathVariable Long eventId,
             @RequestParam String fullName,
