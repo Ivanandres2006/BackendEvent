@@ -40,6 +40,7 @@ public class Event {
     private Integer availableTickets; // ✅ Aggregate available quantity
 
     //---WaitList---
+    @Column(nullable = false)
     private boolean listOnly = false;
     private String guestListPdf;
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
