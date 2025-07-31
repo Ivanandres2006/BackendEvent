@@ -66,7 +66,7 @@ public class EventController {
         }
     }
 
-    @PostMapping("/events/{eventId}/waitlist")
+    @PostMapping("/{eventId}/waitlist")
     public ResponseEntity<?> requestWaitlist(
             @PathVariable Long eventId,
             @RequestParam String fullName,
@@ -96,7 +96,7 @@ public class EventController {
         return ResponseEntity.ok("Request submitted");
     }
 
-    @PostMapping("/events/{eventId}/waitlist/{entryId}/status")
+    @PostMapping("/{eventId}/waitlist/{entryId}/status")
     public ResponseEntity<?> updateWaitlistStatus(
             @PathVariable Long eventId,
             @PathVariable Long entryId,
@@ -122,7 +122,7 @@ public class EventController {
         return ResponseEntity.ok("Updated");
     }
 
-    @GetMapping("/events/{eventId}/waitlist")
+    @GetMapping("/{eventId}/waitlist")
     public ResponseEntity<?> getWaitlist(
             @PathVariable Long eventId,
             @AuthenticationPrincipal UserDetailsImpl userDetails
@@ -139,7 +139,7 @@ public class EventController {
         return ResponseEntity.ok(waitlistEntryRepository.findByEvent(event));
     }
 
-    @PostMapping("/events/upload-guestlist")
+    @PostMapping("upload-guestlist")
     public ResponseEntity<?> uploadGuestList(@RequestParam("file") MultipartFile file) {
         try {
             String filename = UUID.randomUUID() + "_" + file.getOriginalFilename();
