@@ -35,4 +35,12 @@ public class WaitlistEntry {
         APPROVED,
         DENIED
     }
+
+    @PrePersist
+    protected void onCreate() {
+        if (requestedAt == null) {
+            requestedAt = LocalDateTime.now();
+        }
+    }
+
 }
