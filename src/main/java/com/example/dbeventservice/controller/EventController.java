@@ -242,7 +242,7 @@ public class EventController {
         event.setPagoMovilBank(req.pagoMovilBank);
         event.setCashNote(req.cashNote);
         event.setListOnly(req.listOnly);
-        event.setGuestListPdf(req.guestListPdfUrl);
+        event.setGuestListPdf(req.guestListPdf);
         event.setType(req.type != null ? req.type : "event");
 
         if ("reunion".equalsIgnoreCase(event.getType())) {
@@ -423,7 +423,7 @@ public class EventController {
             event.setAllowPagoMovil(req.allowPagoMovil);
             event.setAllowCash(req.allowCash);
             event.setListOnly(req.listOnly);
-            event.setGuestListPdf(req.guestListPdfUrl);
+            event.setGuestListPdf(req.guestListPdf);
             if (req.pagoMovilPhone != null && !req.pagoMovilPhone.equals(event.getPagoMovilPhone())) event.setPagoMovilPhone(req.pagoMovilPhone);
             if (req.pagoMovilCi != null && !req.pagoMovilCi.equals(event.getPagoMovilCi())) event.setPagoMovilCi(req.pagoMovilCi);
             if (req.pagoMovilBank != null && !req.pagoMovilBank.equals(event.getPagoMovilBank())) event.setPagoMovilBank(req.pagoMovilBank);
@@ -600,7 +600,7 @@ public class EventController {
         public String cashNote;
 
         public boolean listOnly = false;
-        public String guestListPdfUrl;
+        public String guestListPdf;
 
     }
 
