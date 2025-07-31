@@ -13,6 +13,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.example.dbeventservice.model.WaitlistEntry;
+
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -39,6 +41,8 @@ public class EventController {
     @Autowired
     private ReunionGuestRepository reunionGuestRepository;
 
+    @Autowired
+    private WaitlistEntryRepository waitlistEntryRepository;
 
 
     @PostMapping("/upload-image")
@@ -61,6 +65,95 @@ public class EventController {
             return ResponseEntity.status(500).body(Map.of("error", "Image upload failed"));
         }
     }
+
+    @PostMapping("/events/{eventId}/waitlist")
+    public ResponseEntity<?> requestWaitlist(
+            @PathVariable Long eventId,
+            @RequestParam String fullName,
+            @AuthenticationPrincipal UserDetailsImpl userDetails
+    ) {
+        Optional<Event> optEvent = eventRepository.findById(eventId);
+        if (optEvent.isEmpty()) return ResponseEntity.notFound().build();
+        Event event = optEvent.get();
+
+        String username = userDetails != null ? userDetails.getUsername() : null;
+
+        boolean exists = waitlistEntryRepository.findByEventIdAndUsername(eventId, username)
+                .isPresent();
+
+        if (exists) {
+            return ResponseEntity.badRequest().body("Already requested");
+        }
+
+        WaitlistEntry entry = WaitlistEntry.builder()
+                .event(event)
+                .username(username)
+                .fullName(fullName)
+                .status(WaitlistEntry.Status.PENDING)
+                .build();
+
+        waitlistEntryRepository.save(entry);
+        return ResponseEntity.ok("Request submitted");
+    }
+
+    @PostMapping("/events/{eventId}/waitlist/{entryId}/status")
+    public ResponseEntity<?> updateWaitlistStatus(
+            @PathVariable Long eventId,
+            @PathVariable Long entryId,
+            @RequestParam WaitlistEntry.Status status,
+            @AuthenticationPrincipal UserDetailsImpl userDetails
+    ) {
+        Optional<Event> optEvent = eventRepository.findById(eventId);
+        if (optEvent.isEmpty()) return ResponseEntity.notFound().build();
+
+        Event event = optEvent.get();
+
+        if (!event.getCreatedBy().getId().equals(userDetails.getId())) {
+            return ResponseEntity.status(403).body("Not authorized");
+        }
+
+        Optional<WaitlistEntry> optEntry = waitlistEntryRepository.findById(entryId);
+        if (optEntry.isEmpty()) return ResponseEntity.notFound().build();
+
+        WaitlistEntry entry = optEntry.get();
+        entry.setStatus(status);
+        waitlistEntryRepository.save(entry);
+
+        return ResponseEntity.ok("Updated");
+    }
+
+    @GetMapping("/events/{eventId}/waitlist")
+    public ResponseEntity<?> getWaitlist(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal UserDetailsImpl userDetails
+    ) {
+        Optional<Event> optEvent = eventRepository.findById(eventId);
+        if (optEvent.isEmpty()) return ResponseEntity.notFound().build();
+
+        Event event = optEvent.get();
+
+        if (!event.getCreatedBy().getId().equals(userDetails.getId())) {
+            return ResponseEntity.status(403).body("Not authorized");
+        }
+
+        return ResponseEntity.ok(waitlistEntryRepository.findByEvent(event));
+    }
+
+    @PostMapping("/events/upload-guestlist")
+    public ResponseEntity<?> uploadGuestList(@RequestParam("file") MultipartFile file) {
+        try {
+            String filename = UUID.randomUUID() + "_" + file.getOriginalFilename();
+            Path path = Paths.get("uploads/pdf/" + filename);
+            Files.createDirectories(path.getParent());
+            Files.write(path, file.getBytes());
+
+            String url = "/uploads/pdf/" + filename;
+            return ResponseEntity.ok(Map.of("url", url));
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body("Upload failed");
+        }
+    }
+
 
     @GetMapping("/{id}/analytics")
     public ResponseEntity<?> getEventAnalytics(@PathVariable Long id, @AuthenticationPrincipal UserDetailsImpl userDetails) {
@@ -148,6 +241,8 @@ public class EventController {
         event.setPagoMovilCi(req.pagoMovilCi);
         event.setPagoMovilBank(req.pagoMovilBank);
         event.setCashNote(req.cashNote);
+        event.setListOnly(req.listOnly);
+        event.setGuestListPdf(req.guestListPdfUrl);
         event.setType(req.type != null ? req.type : "event");
 
         if ("reunion".equalsIgnoreCase(event.getType())) {
@@ -327,6 +422,8 @@ public class EventController {
             if (req.zellePhone != null && !req.zellePhone.equals(event.getZellePhone())) event.setZellePhone(req.zellePhone);
             event.setAllowPagoMovil(req.allowPagoMovil);
             event.setAllowCash(req.allowCash);
+            event.setListOnly(req.listOnly);
+            event.setGuestListPdf(req.guestListPdfUrl);
             if (req.pagoMovilPhone != null && !req.pagoMovilPhone.equals(event.getPagoMovilPhone())) event.setPagoMovilPhone(req.pagoMovilPhone);
             if (req.pagoMovilCi != null && !req.pagoMovilCi.equals(event.getPagoMovilCi())) event.setPagoMovilCi(req.pagoMovilCi);
             if (req.pagoMovilBank != null && !req.pagoMovilBank.equals(event.getPagoMovilBank())) event.setPagoMovilBank(req.pagoMovilBank);
@@ -501,6 +598,10 @@ public class EventController {
         public String pagoMovilBank;
 
         public String cashNote;
+
+        public boolean listOnly = false;
+        public String guestListPdfUrl;
+
     }
 
     @Getter

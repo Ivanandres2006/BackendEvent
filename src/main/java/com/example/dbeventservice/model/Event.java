@@ -39,7 +39,12 @@ public class Event {
     private Double price; // ✅ Base/default price (optional)
     private Integer availableTickets; // ✅ Aggregate available quantity
 
-
+    //---WaitList---
+    private boolean listOnly = false;
+    private String guestListPdf;
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<WaitlistEntry> waitlistEntries = new ArrayList<>();
+    //-------------
 
     @ManyToOne
     @JoinColumn(name = "created_by_id")
