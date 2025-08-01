@@ -64,7 +64,10 @@ public class WebSecurityConfig {
                                 "/api/notifications/send-test",
                                 "/ping",
                                 "/api/waitlist",
-                                "/test-email"
+                                "/test-email",
+                                "events/{eventId}/waitlist/request",
+                                "events/{eventId}/waitlist/{entryId}/status",
+                                "events/{eventId}/waitlist"
 
                         ).permitAll()
                         .requestMatchers("/auth/validate").authenticated()
