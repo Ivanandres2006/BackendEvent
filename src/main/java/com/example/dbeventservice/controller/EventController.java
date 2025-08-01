@@ -122,6 +122,19 @@ public class EventController {
         return ResponseEntity.ok("Updated");
     }
 
+    @GetMapping("/{eventId}/waitlist/status")
+    public ResponseEntity<?> getMyWaitlistStatus(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal UserDetailsImpl userDetails
+    ) {
+        if (userDetails == null) return ResponseEntity.status(401).body("Unauthorized");
+        String username = userDetails.getUsername();
+        Optional<WaitlistEntry> entry = waitlistEntryRepository.findByEventIdAndUsername(eventId, username);
+        return entry.map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.ok().body(null));
+    }
+
+
     @GetMapping("/{eventId}/waitlist")
     public ResponseEntity<?> getWaitlist(
             @PathVariable Long eventId,
