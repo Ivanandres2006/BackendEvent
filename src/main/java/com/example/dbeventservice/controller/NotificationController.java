@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -59,63 +60,33 @@ public class NotificationController {
     @PostMapping("/register")
     public ResponseEntity<?> registerToken(@RequestBody Map<String, String> body) {
         String token = body.get("token");
+        String username = body.get("username"); // 👈 NEW
 
-        System.out.println("📥 TOKEN RECIBIDO: " + token);
-        if (token == null || token.isBlank()) {
-            return ResponseEntity.badRequest().body("Invalid token");
+        System.out.println("📥 TOKEN RECIBIDO: " + token + " for user: " + username);
+        if (token == null || token.isBlank() || username == null || username.isBlank()) {
+            return ResponseEntity.badRequest().body("Invalid token or username");
         }
 
         token = token.trim();
+        username = username.trim();
 
-        // Evita duplicados
-        if (tokenRepo.findByToken(token).isEmpty()) {
+        // Save or update token for this user
+        Optional<FCMToken> existing = tokenRepo.findByToken(token);
+        if (existing.isEmpty()) {
             FCMToken fcmToken = new FCMToken();
             fcmToken.setToken(token);
+            fcmToken.setUsername(username); // Save user info!
             tokenRepo.save(fcmToken);
             System.out.println("✅ Nuevo token guardado en BD");
         } else {
-            System.out.println("ℹ️ Token ya existe en BD, no se duplica");
+            FCMToken fcmToken = existing.get();
+            fcmToken.setUsername(username); // Update username in case user logged in with different account
+            tokenRepo.save(fcmToken);
+            System.out.println("ℹ️ Token ya existe, username actualizado");
         }
 
         return ResponseEntity.ok("Token saved");
     }
-
-    @PostConstruct
-    public void scheduleAutoNotification() {
-        // ⏰ Hora objetivo: HOY 10:00 AM
-        LocalDateTime baseTarget = LocalDateTime.now()
-                .withHour(15)
-                .withMinute(22)
-                .withSecond(0)
-                .withNano(0);
-
-        LocalDateTime now = LocalDateTime.now();
-
-        // Definimos la hora final sin reasignar
-        LocalDateTime finalTarget = now.isAfter(baseTarget)
-                ? now.plusMinutes(30)
-                : baseTarget;
-
-        long delayMs = ChronoUnit.MILLIS.between(now, finalTarget);
-
-        System.out.println("⏰ Notificación programada para " + finalTarget);
-
-        // Programa el envío
-        Executors.newSingleThreadScheduledExecutor().schedule(() -> {
-            System.out.println("⏰ Enviando notificación automática: " + finalTarget);
-            List<FCMToken> tokens = tokenRepo.findAll();
-            for (FCMToken t : tokens) {
-                sendPush(
-                        t.getToken(),
-                        "🎉 WKND Recordatorio",
-                        "Esto es una prueba para noti!"
-                );
-            }
-        }, delayMs, TimeUnit.MILLISECONDS);
-
-    }
-
-
 
     @PostMapping("/send-test")
     public ResponseEntity<?> sendTestNotification() {
@@ -183,6 +154,47 @@ public class NotificationController {
                 } catch (Exception ignore) {}
             }
 
+        } catch (Exception e) {
+            System.out.println("❌ Unexpected exception while sending push:");
+            e.printStackTrace();
+        }
+    }
+
+    public void sendPushWithEvent(String token, String title, String body, Long eventId) {
+        try {
+            // Ensure Firebase is initialized (init if not)
+            if (FirebaseApp.getApps().isEmpty()) {
+                System.out.println("⚠️ FirebaseApp not initialized. Initializing now...");
+                InputStream serviceAccount = getClass().getClassLoader().getResourceAsStream("firebase_key.json");
+                if (serviceAccount == null) {
+                    System.out.println("❌ firebase_key.json not found in resources!");
+                    return;
+                }
+                FirebaseOptions options = FirebaseOptions.builder()
+                        .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                        .build();
+                FirebaseApp.initializeApp(options);
+                System.out.println("✅ FirebaseApp initialized successfully.");
+            }
+
+            // Build the message with deep link eventId
+            Message message = Message.builder()
+                    .setToken(token)
+                    .setNotification(Notification.builder()
+                            .setTitle(title)
+                            .setBody(body)
+                            .build())
+                    .putData("eventId", eventId.toString())
+                    .build();
+
+            String response = FirebaseMessaging.getInstance().send(message);
+            System.out.println("✅ Notificación enviada a: " + token + " — response: " + response);
+
+        } catch (FirebaseMessagingException e) {
+            System.out.println("❌ FCM failed:");
+            System.out.println("   • Error code: " + e.getMessagingErrorCode());
+            System.out.println("   • HTTP status: " + (e.getHttpResponse() != null ? e.getHttpResponse().getStatusCode() : "n/a"));
+            System.out.println("   • Response body: " + (e.getHttpResponse() != null ? e.getHttpResponse().getContent() : "n/a"));
         } catch (Exception e) {
             System.out.println("❌ Unexpected exception while sending push:");
             e.printStackTrace();

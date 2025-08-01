@@ -44,6 +44,11 @@ public class EventController {
     @Autowired
     private WaitlistEntryRepository waitlistEntryRepository;
 
+    @Autowired
+    private FCMTokenRepository tokenRepo;
+
+    @Autowired
+    private NotificationController notificationController;
 
     @PostMapping("/upload-image")
     public ResponseEntity<Map<String, String>> uploadImage(@RequestParam("file") MultipartFile file) {
@@ -93,6 +98,18 @@ public class EventController {
                 .build();
 
         waitlistEntryRepository.save(entry);
+
+        // 🔔 Notify the event owner
+        String ownerUsername = event.getCreatedBy().getUsername();
+        List<FCMToken> ownerTokens = tokenRepo.findAllByUsername(ownerUsername);
+
+        String notifTitle = "Nueva solicitud de acceso";
+        String notifBody = entry.getFullName() + " (" + entry.getUsername() + ") quiere entrar al evento \"" + event.getTitle() + "\".";
+
+        for (FCMToken token : ownerTokens) {
+            notificationController.sendPushWithEvent(token.getToken(), notifTitle, notifBody, event.getId());
+        }
+
         return ResponseEntity.ok("Request submitted");
     }
 
@@ -118,6 +135,23 @@ public class EventController {
         WaitlistEntry entry = optEntry.get();
         entry.setStatus(status);
         waitlistEntryRepository.save(entry);
+        String targetUsername = entry.getUsername();
+        if (targetUsername != null) {
+            List<FCMToken> userTokens = tokenRepo.findAllByUsername(targetUsername);
+            String notifTitle = "Estado de tu solicitud";
+            String notifBody;
+            if (status == WaitlistEntry.Status.APPROVED) {
+                notifBody = "¡Fuiste aceptado a \"" + event.getTitle() + "\"!";
+            } else if (status == WaitlistEntry.Status.DENIED) {
+                notifBody = "No fuiste aceptado a \"" + event.getTitle() + "\".";
+            } else {
+                notifBody = "El estado de tu solicitud cambió.";
+            }
+            for (FCMToken token : userTokens) {
+                notificationController.sendPushWithEvent(token.getToken(), notifTitle, notifBody, event.getId());
+            }
+        }
+
 
         return ResponseEntity.ok("Updated");
     }

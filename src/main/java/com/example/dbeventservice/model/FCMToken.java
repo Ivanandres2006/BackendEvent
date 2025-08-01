@@ -17,5 +17,7 @@ public class FCMToken {
     @Column(length = 4096, unique = true)
     private String token;
 
+    private String username;
+
     private LocalDateTime createdAt = LocalDateTime.now();
 }
