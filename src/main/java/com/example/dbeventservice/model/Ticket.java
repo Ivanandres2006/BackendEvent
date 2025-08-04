@@ -5,6 +5,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Getter
 @Setter
@@ -25,6 +27,10 @@ public class Ticket {
 
     @Column(nullable = false)
     private boolean paid = false;
+
+    private LocalDateTime usedAt;
+    private String scannedBy; // (email/username of the checker)
+
 
     @Column
     private String paymentMethod;

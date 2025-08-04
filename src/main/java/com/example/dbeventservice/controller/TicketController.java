@@ -180,6 +180,8 @@ public class TicketController {
         }
 
         ticket.setUsed(true);
+        ticket.setUsedAt(LocalDateTime.now());
+        ticket.setScannedBy(userDetails.getUsername());
         ticketRepository.save(ticket);
 
         return ResponseEntity.ok(Map.of("status", "Ticket marked as used"));
