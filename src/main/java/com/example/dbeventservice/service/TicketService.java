@@ -101,25 +101,28 @@ public class TicketService {
                         paymentMethod.equalsIgnoreCase("cash"));
 
         if (isFree || isManualPayment) {
-            Ticket ticket = new Ticket();
-            ticket.setOwner(user);
-            ticket.setEvent(event);
-            ticket.setTicketTier(tier);
-            ticket.setPaymentMethod(paymentMethod != null ? paymentMethod : "free");
-            ticket.setQuantity(quantity);
+            List<Ticket> tickets = new ArrayList<>();
+            for (int i = 0; i < quantity; i++) {
+                Ticket ticket = new Ticket();
+                ticket.setOwner(user);
+                ticket.setEvent(event);
+                ticket.setTicketTier(tier);
+                ticket.setPaymentMethod(paymentMethod != null ? paymentMethod : "free");
+                ticket.setQuantity(1);
+                if (isFree) {
+                    ticket.setPaid(true);
+                    ticket.setStatus(TicketStatus.PAID);
+                } else {
+                    ticket.setPaid(false);
+                    ticket.setStatus(TicketStatus.PENDING);
+                }
+                ticketRepository.save(ticket);
 
-            if (isFree) {
-                ticket.setPaid(true);
-                ticket.setStatus(TicketStatus.PAID);
-            } else {
-                ticket.setPaid(false); // ❗ not paid yet
-                ticket.setStatus(TicketStatus.PENDING); // ❗ organizer decides
+                ticket.setQrCodeUrl(QRCodeGenerator.generate(ticket.getId(), email));
+                ticketRepository.save(ticket);
+
+                tickets.add(ticket);
             }
-
-            ticketRepository.save(ticket);
-
-            ticket.setQrCodeUrl(QRCodeGenerator.generate(ticket.getId(), email));
-            ticketRepository.save(ticket);
 
             if (!event.getAttendees().contains(user)) {
                 event.getAttendees().add(user);
@@ -296,18 +299,23 @@ public class TicketService {
                     return;
                 }
 
-                Ticket ticket = new Ticket();
-                ticket.setOwner(user);
-                ticket.setEvent(event);
-                ticket.setTicketTier(tier);
-                ticket.setPaymentMethod("stripe");
-                ticket.setPaid(true); // only set if payment is confirmed
-                ticket.setQuantity(quantity);
-                ticket.setStatus(TicketStatus.PAID);
-                ticketRepository.save(ticket);
+                List<Ticket> tickets = new ArrayList<>();
+                for (int i = 0; i < quantity; i++) {
+                    Ticket ticket = new Ticket();
+                    ticket.setOwner(user);
+                    ticket.setEvent(event);
+                    ticket.setTicketTier(tier);
+                    ticket.setPaymentMethod("stripe");
+                    ticket.setPaid(true);
+                    ticket.setQuantity(1);
+                    ticket.setStatus(TicketStatus.PAID);
+                    ticketRepository.save(ticket);
 
-                ticket.setQrCodeUrl(QRCodeGenerator.generate(ticket.getId(), email));
-                ticketRepository.save(ticket);
+                    ticket.setQrCodeUrl(QRCodeGenerator.generate(ticket.getId(), email));
+                    ticketRepository.save(ticket);
+
+                    tickets.add(ticket);
+                }
 
                 if (!event.getAttendees().contains(user)) {
                     event.getAttendees().add(user);
