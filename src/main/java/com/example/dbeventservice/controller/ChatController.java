@@ -140,12 +140,14 @@ public class ChatController {
     }
 
     @PostMapping("/start-direct")
-    public ResponseEntity<ChatRoom> startDirectChat(
+    public ResponseEntity<Map<String, Long>> startDirectChat(
             @AuthenticationPrincipal UserDetailsImpl user,
             @RequestBody Map<String, Long> request) {
         Long eventId = request.get("eventId");
-        return ResponseEntity.ok(chatService.createOrFetchDirectChat(user.getId(), eventId));
+        ChatRoom room = chatService.createOrFetchDirectChat(user.getId(), eventId);
+        return ResponseEntity.ok(Map.of("id", room.getId()));
     }
+
 
     @GetMapping("/promoter-group/{eventId}")
     public ResponseEntity<ChatRoom> getPromoterGroupChat(
