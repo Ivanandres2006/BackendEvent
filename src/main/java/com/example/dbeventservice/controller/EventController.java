@@ -60,7 +60,7 @@ public class EventController {
             Files.createDirectories(path.getParent());
             Files.write(path, file.getBytes());
 
-            String baseUrl = "http://localhost:8080";
+            String baseUrl = "https://backendevent-etce.onrender.com";
             String imageUrl = baseUrl + "/uploads/" + filename;
 
             System.out.println("✅ Image uploaded: " + imageUrl);
