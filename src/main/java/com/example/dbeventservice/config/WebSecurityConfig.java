@@ -65,6 +65,7 @@ public class WebSecurityConfig {
                                 "/ping",
                                 "/api/waitlist",
                                 "/test-email",
+                                "/resale/available",
                                 "events/{eventId}/waitlist/request",
                                 "events/{eventId}/waitlist/{entryId}/status",
                                 "events/{eventId}/waitlist"
