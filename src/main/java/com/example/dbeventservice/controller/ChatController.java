@@ -34,7 +34,6 @@ public class ChatController {
     @Autowired
     private ChatService chatService;
 
-    // ✅ Create or get a chat room between buyer and seller
     @PostMapping("/start")
     public ResponseEntity<?> startChat(
             @AuthenticationPrincipal UserDetailsImpl userDetails,
@@ -45,8 +44,9 @@ public class ChatController {
         }
 
         ChatRoom room = chatService.createOrGetChatRoom(request.getResalePostId(), userDetails.getId());
-        return ResponseEntity.ok(room);
+        return ResponseEntity.ok(Map.of("id", room.getId())); // ✅ ONLY return the ID
     }
+
 
     @PostMapping("/start-with-admin")
     public ResponseEntity<?> startAdminChat(@AuthenticationPrincipal UserDetailsImpl userDetails) {
