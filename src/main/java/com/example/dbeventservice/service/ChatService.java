@@ -55,6 +55,7 @@ public class ChatService {
                             .resalePost(post)
                             .buyer(buyer)
                             .seller(post.getSeller())
+                            .type(ChatType.RESALE)   // <-- THIS LINE IS CRUCIAL!
                             .build();
                     return chatRoomRepository.save(room);
                 });
