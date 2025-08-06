@@ -2,6 +2,7 @@ package com.example.dbeventservice.controller;
 
 import com.example.dbeventservice.auth.jwt.UserDetailsImpl;
 import com.example.dbeventservice.dto.PaymentIntentResponse;
+import com.example.dbeventservice.dto.TicketDTO;
 import com.example.dbeventservice.model.Ticket;
 import com.example.dbeventservice.service.ResalePaymentService;
 import com.stripe.exception.StripeException;
@@ -34,7 +35,6 @@ public class ResalePaymentController {
         }
     }
 
-    // ✅ Step 2: Confirm after successful payment
     @PostMapping("/confirm-transfer/{resalePostId}")
     public ResponseEntity<?> confirmTransfer(
             @AuthenticationPrincipal UserDetailsImpl userDetails,
@@ -43,9 +43,11 @@ public class ResalePaymentController {
             Ticket ticket = resalePaymentService.processPaymentAndTransferTicket(
                     resalePostId, userDetails.getId()
             );
-            return ResponseEntity.ok(ticket);
+            TicketDTO dto = new TicketDTO(ticket, true);  // or false if you want, but likely true for resold
+            return ResponseEntity.ok(dto);  // <- ✅ Return DTO, not entity!
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
 }
