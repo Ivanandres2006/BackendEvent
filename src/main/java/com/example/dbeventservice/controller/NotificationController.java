@@ -160,6 +160,14 @@ public class NotificationController {
         }
     }
 
+    public void sendPushToUsername(String username, String title, String body) {
+        List<FCMToken> tokens = tokenRepo.findAllByUsername(username);
+        for (FCMToken token : tokens) {
+            sendPush(token.getToken(), title, body);
+        }
+    }
+
+
     public void sendPushWithEvent(String token, String title, String body, Long eventId) {
         try {
             // Ensure Firebase is initialized (init if not)

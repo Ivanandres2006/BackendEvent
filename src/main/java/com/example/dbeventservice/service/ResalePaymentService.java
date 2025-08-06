@@ -38,6 +38,9 @@ public class ResalePaymentService {
     @Autowired
     private CounterOfferRepository counterOfferRepository;
 
+    @Autowired
+    private NotificationService notificationService;
+
 
     public ResalePaymentService(
             ResalePostRepository resalePostRepository,
@@ -128,18 +131,35 @@ public class ResalePaymentService {
         User buyer = userRepository.findById(buyerId)
                 .orElseThrow(() -> new IllegalArgumentException("Buyer not found"));
 
-
         ticket.setOwner(buyer);
         ticket.setStatus(TicketStatus.PAID);
         ticket.setQrCodeUrl(QRCodeGenerator.generate(ticket.getId(), buyer.getEmail())); // ✅ regenerate QR
         ticketRepository.save(ticket);
 
-
         post.setSold(true);
         resalePostRepository.save(post);
 
+        // 👉 SEND PUSH NOTIFICATION TO SELLER
+        User seller = post.getSeller();
+        String eventTitle = ticket.getEvent().getTitle();
+        if (seller != null && seller.getUsername() != null && buyer != null) {
+            String msg = String.format(
+                    "You'r ticket for %s was purchase by %s %s (@%s).",
+                    eventTitle,
+                    buyer.getFirstName(),
+                    buyer.getLastName(),
+                    buyer.getUsername()
+            );
+            notificationService.sendPushToUsername(
+                    seller.getUsername(),
+                    "🎟️ ¡Ticket sold!",
+                    msg
+            );
+        }
+
         return ticket;
     }
+
 
     public void confirmResalePayment(String paymentIntentId) {
         try {

@@ -100,15 +100,7 @@ public class EventController {
         waitlistEntryRepository.save(entry);
 
         // 🔔 Notify the event owner
-        String ownerUsername = event.getCreatedBy().getUsername();
-        List<FCMToken> ownerTokens = tokenRepo.findAllByUsername(ownerUsername);
-
-        String notifTitle = "Nueva solicitud de acceso";
-        String notifBody = entry.getFullName() + " (" + entry.getUsername() + ") quiere entrar al evento \"" + event.getTitle() + "\".";
-
-        for (FCMToken token : ownerTokens) {
-            notificationController.sendPushWithEvent(token.getToken(), notifTitle, notifBody, event.getId());
-        }
+        sendWaitlistRequestNotificationToOwner(event, entry);
 
         return ResponseEntity.ok("Request submitted");
     }
@@ -135,22 +127,8 @@ public class EventController {
         WaitlistEntry entry = optEntry.get();
         entry.setStatus(status);
         waitlistEntryRepository.save(entry);
-        String targetUsername = entry.getUsername();
-        if (targetUsername != null) {
-            List<FCMToken> userTokens = tokenRepo.findAllByUsername(targetUsername);
-            String notifTitle = "Estado de tu solicitud";
-            String notifBody;
-            if (status == WaitlistEntry.Status.APPROVED) {
-                notifBody = "¡Fuiste aceptado a \"" + event.getTitle() + "\"!";
-            } else if (status == WaitlistEntry.Status.DENIED) {
-                notifBody = "No fuiste aceptado a \"" + event.getTitle() + "\".";
-            } else {
-                notifBody = "El estado de tu solicitud cambió.";
-            }
-            for (FCMToken token : userTokens) {
-                notificationController.sendPushWithEvent(token.getToken(), notifTitle, notifBody, event.getId());
-            }
-        }
+
+        sendWaitlistStatusNotificationToUser(event, entry, status);
 
 
         return ResponseEntity.ok("Updated");
@@ -198,6 +176,42 @@ public class EventController {
             return ResponseEntity.ok(Map.of("url", url));
         } catch (IOException e) {
             return ResponseEntity.status(500).body("Upload failed");
+        }
+    }
+
+    private void sendWaitlistRequestNotificationToOwner(Event event, WaitlistEntry entry) {
+        String ownerUsername = event.getCreatedBy().getUsername();
+        List<FCMToken> ownerTokens = tokenRepo.findAllByUsername(ownerUsername);
+
+        String notifTitle = "New Waitlist Request";
+        String notifBody = entry.getFullName() + " (" + entry.getUsername() + ") requested access to event \"" + event.getTitle() + "\".";
+
+        for (FCMToken token : ownerTokens) {
+            notificationController.sendPushWithEvent(token.getToken(), notifTitle, notifBody, event.getId());
+        }
+    }
+
+    /**
+     * Notify the user that their waitlist request was approved or denied.
+     */
+    private void sendWaitlistStatusNotificationToUser(Event event, WaitlistEntry entry, WaitlistEntry.Status status) {
+        String targetUsername = entry.getUsername();
+        if (targetUsername == null) return;
+
+        List<FCMToken> userTokens = tokenRepo.findAllByUsername(targetUsername);
+
+        String notifTitle = "Your Waitlist Request Status";
+        String notifBody;
+        if (status == WaitlistEntry.Status.APPROVED) {
+            notifBody = "🎉 You have been approved for \"" + event.getTitle() + "\"!";
+        } else if (status == WaitlistEntry.Status.DENIED) {
+            notifBody = "❌ Your request for \"" + event.getTitle() + "\" was denied.";
+        } else {
+            notifBody = "The status of your request for \"" + event.getTitle() + "\" has changed.";
+        }
+
+        for (FCMToken token : userTokens) {
+            notificationController.sendPushWithEvent(token.getToken(), notifTitle, notifBody, event.getId());
         }
     }
 
