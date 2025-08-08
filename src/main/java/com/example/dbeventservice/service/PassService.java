@@ -81,14 +81,14 @@ public class PassService {
         // Adjust paths to where your PNGs actually are.
         // If your files are at src/main/resources/logo.png and logo@2x.png, this works:
         tmpl.addFile(PKPassTemplateInMemory.PK_ICON,
-                resStream("/wallet/base/logo.png"));
+                resStream("/Wallet/base/logo.png"));
         tmpl.addFile(PKPassTemplateInMemory.PK_ICON_RETINA,
-                resStream("/wallet/base/logo@2x.png"));
+                resStream("/Wallet/base/logo@2x.png"));
 
         safeAdd(tmpl, PKPassTemplateInMemory.PK_LOGO,
-                "/wallet/base/logo.png");
+                "/Wallet/base/logo.png");
         safeAdd(tmpl, PKPassTemplateInMemory.PK_LOGO_RETINA,
-                "/wallet/base/logo@2x.png");
+                "/Wallet/base/logo@2x.png");
 
 
 
