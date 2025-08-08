@@ -49,6 +49,10 @@ public class ChatService {
         User buyer = userRepository.findById(buyerId)
                 .orElseThrow(() -> new IllegalArgumentException("Buyer not found"));
 
+        if (post.getSeller().getId().equals(buyerId)) {
+            throw new IllegalArgumentException("Cannot chat with yourself");
+        }
+
         return chatRoomRepository.findByResalePostAndBuyer(post, buyer)
                 .orElseGet(() -> {
                     ChatRoom room = ChatRoom.builder()
@@ -64,6 +68,13 @@ public class ChatService {
     public Message sendMessage(Long chatRoomId, Long senderId, String content) {
         ChatRoom room = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new IllegalArgumentException("Chat room not found"));
+
+        if (room.getType() == ChatType.RESALE
+                && room.getBuyer() != null
+                && room.getSeller() != null
+                && room.getBuyer().getId().equals(room.getSeller().getId())) {
+            throw new IllegalStateException("Invalid chat room (buyer == seller)");
+        }
 
         User sender = userRepository.findById(senderId)
                 .orElseThrow(() -> new IllegalArgumentException("Sender not found"));
