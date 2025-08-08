@@ -38,14 +38,17 @@ public class ChatController {
     public ResponseEntity<?> startChat(
             @AuthenticationPrincipal UserDetailsImpl userDetails,
             @RequestBody StartChatRequest request) {
-
         if (request.getResalePostId() == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "resalePostId is required"));
         }
-
-        ChatRoom room = chatService.createOrGetChatRoom(request.getResalePostId(), userDetails.getId());
-        return ResponseEntity.ok(Map.of("id", room.getId())); // ✅ ONLY return the ID
+        try {
+            ChatRoom room = chatService.createOrGetChatRoom(request.getResalePostId(), userDetails.getId());
+            return ResponseEntity.ok(Map.of("id", room.getId()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
+
 
 
     @PostMapping("/start-with-admin")

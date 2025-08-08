@@ -16,6 +16,7 @@ public class ResalePostDTO {
     private String eventTitle;
     private String eventImageUrl;
     private int unreadMessages = 0;
+    private Long sellerId;
     private Long eventId; // ✅ ADD THIS
     private boolean sold; // ✅ Add this
 
@@ -28,6 +29,7 @@ public class ResalePostDTO {
         this.sellerName = post.getSeller().getFirstName();
         this.eventTitle = post.getTicket().getEvent().getTitle();
         this.eventImageUrl = post.getTicket().getEvent().getImageUrl();
+        this.sellerId = post.getSeller().getId();
         this.eventId = post.getTicket().getEvent().getId();
         this.sold = post.isSold();
     }
