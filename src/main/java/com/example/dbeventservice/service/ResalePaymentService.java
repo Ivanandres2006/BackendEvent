@@ -64,35 +64,29 @@ public class ResalePaymentService {
                 .orElseThrow(() -> new IllegalArgumentException("Post not found"));
 
         if (post.isSold()) throw new IllegalArgumentException("Ticket already sold");
-
         if (Objects.equals(post.getSeller().getId(), buyerId))
             throw new IllegalArgumentException("You cannot buy your own resale post");
 
-        // ✅ Find chat room
-        ChatRoom chatRoom = chatRoomRepository
-                .findByResalePostIdAndBuyerId(resalePostId, buyerId)
-                .orElseThrow(() -> new IllegalArgumentException("Chat room not found"));
+        // 👇 Try to find chat; if missing, no exception
+        Optional<ChatRoom> chatRoomOpt =
+                chatRoomRepository.findByResalePostIdAndBuyerId(resalePostId, buyerId);
 
-        // ✅ Check for accepted counteroffer
-        Optional<CounterOffer> accepted = counterOfferRepository
-                .findTopByChatRoomAndSenderIdAndStatusOrderByCreatedAtDesc(
-                        chatRoom, buyerId, OfferStatus.ACCEPTED
-                );
-
-        double finalPrice = accepted.map(CounterOffer::getAmount).orElse(post.getPrice());
-        long amount = (long) (finalPrice * 100); // in cents
-
-        // ✅ Stripe Customer
-        Customer customer = Customer.create(new HashMap<>());
-
-        EphemeralKey key = EphemeralKey.create(
-                Map.of("customer", customer.getId()),
-                RequestOptions.builder()
-                        .setStripeVersionOverride("2023-10-16")
-                        .build()
+        // 👇 Only look for accepted counteroffer if a room exists
+        Optional<CounterOffer> accepted = chatRoomOpt.flatMap(room ->
+                counterOfferRepository.findTopByChatRoomAndSenderIdAndStatusOrderByCreatedAtDesc(
+                        room, buyerId, OfferStatus.ACCEPTED
+                )
         );
 
-        // ✅ Create PaymentIntent
+        double finalPrice = accepted.map(CounterOffer::getAmount).orElse(post.getPrice());
+        long amount = (long) (finalPrice * 100);
+
+        Customer customer = Customer.create(new HashMap<>());
+        EphemeralKey key = EphemeralKey.create(
+                Map.of("customer", customer.getId()),
+                RequestOptions.builder().setStripeVersionOverride("2023-10-16").build()
+        );
+
         PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
                 .setAmount(amount)
                 .setCurrency("usd")
@@ -101,20 +95,15 @@ public class ResalePaymentService {
                 .putMetadata("buyerId", buyerId.toString())
                 .putMetadata("ticketTitle", post.getTitle())
                 .setAutomaticPaymentMethods(
-                        PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
-                                .setEnabled(true)
-                                .build()
+                        PaymentIntentCreateParams.AutomaticPaymentMethods.builder().setEnabled(true).build()
                 )
                 .build();
 
         PaymentIntent intent = PaymentIntent.create(params);
 
-        return new PaymentIntentResponse(
-                intent.getClientSecret(),
-                customer.getId(),
-                key.getSecret()
-        );
+        return new PaymentIntentResponse(intent.getClientSecret(), customer.getId(), key.getSecret());
     }
+
 
     public Ticket processPaymentAndTransferTicket(Long resalePostId, Long buyerId) {
         ResalePost post = resalePostRepository.findById(resalePostId)
