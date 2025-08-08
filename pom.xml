@@ -22,6 +22,7 @@
         <java.version>17</java.version>
     </properties>
 
+
     <dependencies>
         <!-- Core Spring Boot -->
         <dependency>
@@ -141,10 +142,29 @@
             <version>8.31.1</version>
         </dependency>
 
+
+
+        <!-- Java PKPass (JPassKit fork on Maven Central) -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-mail</artifactId>
+            <groupId>de.brendamour</groupId>
+            <artifactId>jpasskit</artifactId>
+            <version>0.4.2</version>
         </dependency>
+
+
+
+        <!-- BouncyCastle for PKCS#7 signing -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>1.78.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk18on</artifactId>
+            <version>1.78.1</version>
+        </dependency>
+
 
         <!-- JJWT (modern modular setup) -->
         <dependency>
@@ -180,6 +200,8 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+
 
     <build>
         <plugins>
