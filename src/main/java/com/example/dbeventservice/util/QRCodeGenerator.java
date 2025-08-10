@@ -7,6 +7,7 @@ import com.google.zxing.client.j2se.MatrixToImageWriter;
 
 import java.io.ByteArrayOutputStream;
 
+
 public class QRCodeGenerator {
     public static byte[] generatePngBytes(String text, int size) throws Exception {
         BitMatrix matrix = new QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size);
