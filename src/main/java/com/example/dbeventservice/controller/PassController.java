@@ -49,7 +49,7 @@ public class PassController {
         String ownerEmail = (t.getOwner() != null && t.getOwner().getEmail() != null)
                 ? t.getOwner().getEmail() : "unknown@wknd.app";
 
-        // Use the SAME QR payload pattern you already use everywhere:
+        // Use the SAME QR payload pattern you already use everywhere
         //  "TICKET:<ticketId>:<email>"
         String qrPayload = "TICKET:" + t.getId() + ":" + ownerEmail;
 
