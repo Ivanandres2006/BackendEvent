@@ -18,10 +18,14 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.KeyStore;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 
 @Service
 public class PassService {
@@ -42,6 +46,21 @@ public class PassService {
     ) throws Exception {
 
         ZonedDateTime zdt = eventStart.atZone(ZoneId.of("America/Chicago"));
+
+        Path p12 = Path.of(p12Path);
+        System.out.println("[DEBUG] P12 path: " + p12.toAbsolutePath());
+        System.out.println("[DEBUG] Exists? " + Files.exists(p12));
+        System.out.println("[DEBUG] Size: " + (Files.exists(p12) ? Files.size(p12) : -1) + " bytes");
+
+        try (var is = Files.newInputStream(p12)) {
+            KeyStore ks = KeyStore.getInstance("PKCS12");
+            ks.load(is, p12Password.toCharArray()); // <--- This will pinpoint password/file issues
+            System.out.println("[DEBUG] Loaded P12 OK, aliases: " + Collections.list(ks.aliases()));
+        } catch (Exception e) {
+            System.out.println("[DEBUG] P12 load FAILED: " + e.getClass().getName() + " - " + e.getMessage());
+            e.printStackTrace();
+            throw e; // rethrow so you can see the exact cause in Render logs
+        }
 
         // ---- Build pass ----
         PKPass pass = PKPass.builder()
@@ -107,6 +126,8 @@ public class PassService {
             var signer = new de.brendamour.jpasskit.signing.PKFileBasedSigningUtil();
             return signer.createSignedAndZippedPkPassArchive(pass, tmpl, signingInfo);
         }
+
+
     }
 
     // === helpers ===
