@@ -2,6 +2,7 @@ package com.example.dbeventservice.service;
 
 import de.brendamour.jpasskit.signing.PKPassTemplateInMemory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -78,12 +79,11 @@ public class PassService {
         de.brendamour.jpasskit.signing.PKPassTemplateInMemory tmpl =
                 new de.brendamour.jpasskit.signing.PKPassTemplateInMemory();
 
-        tmpl.addFile(PKPassTemplateInMemory.PK_ICON,          res("/Wallet.base/icon.png"));
-        tmpl.addFile(PKPassTemplateInMemory.PK_ICON_RETINA,   res("/Wallet.base/icon@2x.png"));
+        tmpl.addFile(PKPassTemplateInMemory.PK_ICON,        res("/Wallet.base/icon.png"));
+        tmpl.addFile(PKPassTemplateInMemory.PK_ICON_RETINA, res("/Wallet.base/icon@2x.png"));
+        safeAdd(tmpl, PKPassTemplateInMemory.PK_LOGO,        "/Wallet.base/logo.png");
+        safeAdd(tmpl, PKPassTemplateInMemory.PK_LOGO_RETINA, "/Wallet.base/logo@2x.png");
 
-        // OPTIONAL (nice to have): logo
-        safeAdd(tmpl, PKPassTemplateInMemory.PK_LOGO,         "/Wallet.base/logo.png");
-        safeAdd(tmpl, PKPassTemplateInMemory.PK_LOGO_RETINA,  "/Wallet.base/logo@2x.png");
 
 
 
@@ -120,11 +120,27 @@ public class PassService {
         return zdt.format(DateTimeFormatter.ofPattern("EEE, MMM d • h:mm a"));
     }
 
+
     private InputStream res(String path) throws IOException {
-        InputStream is = getClass().getResourceAsStream(path);
-        if (is == null) throw new IOException("Missing resource: " + path);
-        return is;
+        // Accepts "/Wallet.base/icon.png" or "Wallet.base/icon.png"
+        String clean = path.startsWith("/") ? path.substring(1) : path;
+        ClassPathResource cpr = new ClassPathResource(clean);
+        if (!cpr.exists()) throw new IOException("Missing resource: " + path);
+        return cpr.getInputStream();
     }
+
+    private void safeAdd(PKPassTemplateInMemory tmpl, String name, String path) {
+        try {
+            String clean = path.startsWith("/") ? path.substring(1) : path;
+            ClassPathResource cpr = new ClassPathResource(clean);
+            if (cpr.exists()) {
+                try (InputStream is = cpr.getInputStream()) {
+                    tmpl.addFile(name, is);
+                }
+            }
+        } catch (IOException ignored) {}
+    }
+
 
 
     private InputStream resStream(String path) throws IOException {
@@ -135,13 +151,7 @@ public class PassService {
         return is;
     }
 
-    private void safeAdd(PKPassTemplateInMemory tmpl, String name, String path) {
-        try (InputStream is = getClass().getResourceAsStream(path)) {
-            if (is != null) {
-                tmpl.addFile(name, is); // ✅ uses InputStream
-            }
-        } catch (IOException ignored) {}
-    }
+
 
 
 }
