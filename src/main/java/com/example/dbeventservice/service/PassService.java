@@ -79,10 +79,12 @@ public class PassService {
         de.brendamour.jpasskit.signing.PKPassTemplateInMemory tmpl =
                 new de.brendamour.jpasskit.signing.PKPassTemplateInMemory();
 
-        tmpl.addFile(PKPassTemplateInMemory.PK_ICON,        res("/Wallet.base/icon.png"));
-        tmpl.addFile(PKPassTemplateInMemory.PK_ICON_RETINA, res("/Wallet.base/icon@2x.png"));
-        safeAdd(tmpl, PKPassTemplateInMemory.PK_LOGO,        "/Wallet.base/logo.png");
-        safeAdd(tmpl, PKPassTemplateInMemory.PK_LOGO_RETINA, "/Wallet.base/logo@2x.png");
+        tmpl.addFile(PKPassTemplateInMemory.PK_ICON,        res("/Wallet/icon.png"));
+        tmpl.addFile(PKPassTemplateInMemory.PK_ICON_RETINA, res("/Wallet/icon@2x.png"));
+
+        safeAdd(tmpl, PKPassTemplateInMemory.PK_LOGO,       "/Wallet/logo.png");
+        safeAdd(tmpl, PKPassTemplateInMemory.PK_LOGO_RETINA,"/Wallet/logo@2x.png");
+
 
 
 
