@@ -78,17 +78,12 @@ public class PassService {
         de.brendamour.jpasskit.signing.PKPassTemplateInMemory tmpl =
                 new de.brendamour.jpasskit.signing.PKPassTemplateInMemory();
 
-        // Adjust paths to where your PNGs actually are.
-        // If your files are at src/main/resources/logo.png and logo@2x.png, this works:
-        tmpl.addFile(PKPassTemplateInMemory.PK_ICON,
-                resStream("/Wallet/base/logo.png"));
-        tmpl.addFile(PKPassTemplateInMemory.PK_ICON_RETINA,
-                resStream("/Wallet/base/logo@2x.png"));
+        tmpl.addFile(PKPassTemplateInMemory.PK_ICON,          res("/Wallet.base/icon.png"));
+        tmpl.addFile(PKPassTemplateInMemory.PK_ICON_RETINA,   res("/Wallet.base/icon@2x.png"));
 
-        safeAdd(tmpl, PKPassTemplateInMemory.PK_LOGO,
-                "/Wallet/base/logo.png");
-        safeAdd(tmpl, PKPassTemplateInMemory.PK_LOGO_RETINA,
-                "/Wallet/base/logo@2x.png");
+        // OPTIONAL (nice to have): logo
+        safeAdd(tmpl, PKPassTemplateInMemory.PK_LOGO,         "/Wallet.base/logo.png");
+        safeAdd(tmpl, PKPassTemplateInMemory.PK_LOGO_RETINA,  "/Wallet.base/logo@2x.png");
 
 
 
