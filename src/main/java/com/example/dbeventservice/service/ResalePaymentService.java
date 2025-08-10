@@ -122,7 +122,7 @@ public class ResalePaymentService {
 
         ticket.setOwner(buyer);
         ticket.setStatus(TicketStatus.PAID);
-        ticket.setQrCodeUrl(QRCodeGenerator.generate(ticket.getId(), buyer.getEmail())); // ✅ regenerate QR
+        ticket.setQrCodeUrl("/api/tickets/qr/" + ticket.getId());
         ticketRepository.save(ticket);
 
         post.setSold(true);

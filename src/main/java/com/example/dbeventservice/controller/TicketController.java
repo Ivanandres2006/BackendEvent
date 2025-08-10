@@ -6,12 +6,17 @@ import com.example.dbeventservice.model.*;
 import com.example.dbeventservice.model.Enum.TicketStatus;
 import com.example.dbeventservice.repositories.*;
 import com.example.dbeventservice.service.TicketService;
+import com.example.dbeventservice.util.QRCodeGenerator;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpHeaders;
+
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -243,6 +248,32 @@ public class TicketController {
         ticketTierRepository.save(tier);
 
         return ResponseEntity.ok(Map.of("status", "Tier force-closed"));
+    }
+
+    @GetMapping(value = "/qr/{ticketId}", produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity<byte[]> getQrForTicket(
+            @PathVariable Long ticketId,
+            @AuthenticationPrincipal UserDetailsImpl userDetails
+    ) {
+        Optional<Ticket> ticketOpt = ticketRepository.findById(ticketId);
+        if (ticketOpt.isEmpty()) return ResponseEntity.status(404).build();
+
+        Ticket ticket = ticketOpt.get();
+
+        // Allow owner or event owner to view QR
+        boolean isOwner = ticket.getOwner() != null && ticket.getOwner().getId().equals(userDetails.getId());
+        boolean isEventOwner = ticket.getEvent() != null && ticket.getEvent().getCreatedBy().getId().equals(userDetails.getId());
+        if (!isOwner && !isEventOwner) return ResponseEntity.status(403).build();
+
+        try {
+            String qrText = "TICKET:" + ticket.getId() + ":" + ticket.getOwner().getEmail();
+            byte[] png = QRCodeGenerator.generatePngBytes(qrText, 300);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CACHE_CONTROL, CacheControl.noStore().getHeaderValue())
+                    .body(png);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
     }
 
 

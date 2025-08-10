@@ -118,8 +118,9 @@ public class TicketService {
                 }
                 ticketRepository.save(ticket);
 
-                ticket.setQrCodeUrl(QRCodeGenerator.generate(ticket.getId(), email));
+                ticket.setQrCodeUrl("/api/tickets/qr/" + ticket.getId());
                 ticketRepository.save(ticket);
+
 
                 tickets.add(ticket);
             }
@@ -311,8 +312,9 @@ public class TicketService {
                     ticket.setStatus(TicketStatus.PAID);
                     ticketRepository.save(ticket);
 
-                    ticket.setQrCodeUrl(QRCodeGenerator.generate(ticket.getId(), email));
+                    ticket.setQrCodeUrl("/api/tickets/qr/" + ticket.getId());
                     ticketRepository.save(ticket);
+
 
                     tickets.add(ticket);
                 }
