@@ -8,6 +8,7 @@ import de.brendamour.jpasskit.enums.PKPassType;
 import de.brendamour.jpasskit.passes.PKGenericPass;
 import de.brendamour.jpasskit.signing.PKFileBasedSigningUtil;
 import de.brendamour.jpasskit.signing.PKPassTemplateInMemory;
+import de.brendamour.jpasskit.signing.PKSigningInformation;
 import de.brendamour.jpasskit.signing.PKSigningInformationUtil;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
@@ -70,36 +71,58 @@ public class PassService {
             Long ticketId,
             String title,
             LocalDateTime eventStart,
-            String location,
+            String fullAddress,      // <— pass the full address here (single string)
             String code
     ) throws Exception {
 
+        // --- sanity checks (fail fast) ---
         if (p12Path == null || p12Path.isBlank()) throw new IOException("pass.p12.path is empty/null");
         if (p12Password == null || p12Password.isBlank()) throw new IOException("pass.p12.password is empty/null");
         if (wwdrPathOptional == null || wwdrPathOptional.isBlank())
             throw new IOException("pass.wwdr.path is missing. Upload AppleWWDRCAG4.cer and set pass.wwdr.path");
 
-        // Quick visibility
+        // --- quick visibility for the P12 actually used (works with PASS_P12_BASE64 + /tmp/pass.p12 too) ---
         Path p12 = Path.of(p12Path);
         System.out.println("[DEBUG] P12 path: " + p12.toAbsolutePath());
         System.out.println("[DEBUG] Exists? " + Files.exists(p12));
         System.out.println("[DEBUG] Size: " + (Files.exists(p12) ? Files.size(p12) : -1) + " bytes");
 
+        // --- time & formatting ---
         ZonedDateTime zdt = eventStart.atZone(ZoneId.of("America/Chicago"));
 
+        // --- build the pass payload ---
         PKPass pass = PKPass.builder()
                 .pass(
                         PKGenericPass.builder()
                                 .passType(PKPassType.PKEventTicket)
-                                .primaryFieldBuilder(PKField.builder().key("event").label("Event").value(title))
-                                .secondaryFieldBuilder(PKField.builder().key("when").label("When").value(formatWhen(zdt)))
-                                .auxiliaryFieldBuilder(PKField.builder().key("loc").label("Where").value(location))
-                                .headerFieldBuilder(PKField.builder().key("code").label("Code").value(shortCode(code)))
+                                // Big line
+                                .primaryFieldBuilder(
+                                        PKField.builder().key("event").label("Event").value(title)
+                                )
+                                // Date & time
+                                .secondaryFieldBuilder(
+                                        PKField.builder().key("when").label("When").value(formatWhen(zdt))
+                                )
+                                // Full address (front of pass). If Apple truncates visually on some devices,
+                                // we also put it on the back (see backFields below).
+                                .auxiliaryFieldBuilder(
+                                        PKField.builder().key("loc").label("Where").value(fullAddress)
+                                )
+                                // Small code at top right
+                                .headerFieldBuilder(
+                                        PKField.builder().key("code").label("Code").value(shortCode(code))
+                                )
+                                // Back of pass: make sure the full address is always visible in full
+                                .backFieldBuilder(
+                                        PKField.builder().key("addr_full").label("Address").value(fullAddress)
+                                )
                 )
-                .barcodeBuilder(PKBarcode.builder()
-                        .format(PKBarcodeFormat.PKBarcodeFormatQR)
-                        .message(code)
-                        .messageEncoding(StandardCharsets.ISO_8859_1.name()))
+                .barcodeBuilder(
+                        PKBarcode.builder()
+                                .format(PKBarcodeFormat.PKBarcodeFormatQR)
+                                .message(code)
+                                .messageEncoding(StandardCharsets.ISO_8859_1.name())
+                )
                 .formatVersion(1)
                 .passTypeIdentifier(passTypeId)
                 .teamIdentifier(teamId)
@@ -107,31 +130,35 @@ public class PassService {
                 .description("WKND Event Ticket")
                 .serialNumber("T-" + ticketId)
                 .relevantDate(java.util.Date.from(zdt.toInstant()))
+                // Colors (black card, white text, gold labels to match your brand)
                 .backgroundColor("rgb(0,0,0)")
                 .foregroundColor("rgb(255,255,255)")
                 .labelColor("rgb(255,215,0)")
                 .build();
 
-        // Template assets (classpath: src/main/resources/Wallet/...)
+        // --- template assets (classpath: src/main/resources/Wallet/...) ---
+        // Use the left-aligned transparent logos we generated:
+        // logo.png 320×100, logo@2x.png 640×200
         PKPassTemplateInMemory tmpl = new PKPassTemplateInMemory();
         tmpl.addFile(PKPassTemplateInMemory.PK_ICON,        res("/Wallet/icon.png"));
         tmpl.addFile(PKPassTemplateInMemory.PK_ICON_RETINA, res("/Wallet/icon@2x.png"));
+        // These are optional (safeAdd won’t fail if missing), but recommended so the Wallet shows WKND top-left
         safeAdd(tmpl, PKPassTemplateInMemory.PK_LOGO,        "/Wallet/logo.png");
         safeAdd(tmpl, PKPassTemplateInMemory.PK_LOGO_RETINA, "/Wallet/logo@2x.png");
 
-        // Sign
+        // --- sign & zip ---
         var util = new PKSigningInformationUtil();
         try (var p12is  = Files.newInputStream(Path.of(p12Path));
              var wwdris = Files.newInputStream(Path.of(wwdrPathOptional))) {
 
-            var signingInfo = util.loadSigningInformationFromPKCS12AndIntermediateCertificate(
-                    p12is, p12Password, wwdris
-            );
+            PKSigningInformation signingInfo = util
+                    .loadSigningInformationFromPKCS12AndIntermediateCertificate(p12is, p12Password, wwdris);
 
             var signer = new PKFileBasedSigningUtil();
             return signer.createSignedAndZippedPkPassArchive(pass, tmpl, signingInfo);
         }
     }
+
 
     // === helpers ===
 
