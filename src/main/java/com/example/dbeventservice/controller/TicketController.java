@@ -192,6 +192,36 @@ public class TicketController {
         return ResponseEntity.ok(Map.of("status", "Ticket marked as used"));
     }
 
+    @PutMapping("/validate/{ticketId}/mark-unused")
+    public ResponseEntity<?> markTicketAsUnused(
+            @PathVariable Long ticketId,
+            @AuthenticationPrincipal UserDetailsImpl userDetails
+    ) {
+        Optional<Ticket> ticketOpt = ticketRepository.findById(ticketId);
+        if (ticketOpt.isEmpty()) {
+            return ResponseEntity.status(404).body(Map.of("error", "Ticket not found"));
+        }
+
+        Ticket ticket = ticketOpt.get();
+        Event event = ticket.getEvent();
+
+        if (!event.getCreatedBy().getId().equals(userDetails.getId())) {
+            return ResponseEntity.status(403).body(Map.of("error", "Unauthorized"));
+        }
+
+        if (!ticket.isUsed()) {
+            return ResponseEntity.ok(Map.of("status", "Ticket already unused"));
+        }
+
+        ticket.setUsed(false);
+        ticket.setUsedAt(null);
+        ticket.setScannedBy(null);
+        ticketRepository.save(ticket);
+
+        return ResponseEntity.ok(Map.of("status", "Ticket marked as unused"));
+    }
+
+
     @GetMapping("/available-tier/{eventId}")
     public ResponseEntity<?> getAvailableTier(@PathVariable Long eventId) {
         LocalDateTime now = LocalDateTime.now();
