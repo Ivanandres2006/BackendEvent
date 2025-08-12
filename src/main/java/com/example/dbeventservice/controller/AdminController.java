@@ -2,6 +2,7 @@ package com.example.dbeventservice.controller;
 
 import com.example.dbeventservice.auth.jwt.UserDetailsImpl;
 import com.example.dbeventservice.dto.AdminEventDTO;
+import com.example.dbeventservice.dto.AdminResalePostDTO;
 import com.example.dbeventservice.dto.AdminUserDTO;
 import com.example.dbeventservice.model.*;
 import com.example.dbeventservice.repositories.EventRepository;
@@ -105,10 +106,26 @@ public class AdminController {
         return ResponseEntity.ok("Event deleted");
     }
 
+
     @PreAuthorize("hasRole('ADMIN')")
+    @Transactional(readOnly = true)
     @GetMapping("/resale-posts")
-    public ResponseEntity<List<ResalePost>> getAllResalePosts() {
-        return ResponseEntity.ok(resalePostRepository.findAll());
+    public ResponseEntity<List<AdminResalePostDTO>> getAllResalePosts() {
+        var list = resalePostRepository.findAllWithSellerAndTicket()
+                .stream()
+                .map(p -> new AdminResalePostDTO(
+                        p.getId(),
+                        p.getTitle(),
+                        p.getDescription(),
+                        p.getPrice(),
+                        p.isSold(),
+                        p.getTicket() != null ? p.getTicket().getId() : null,
+                        p.getSeller() != null ? p.getSeller().getEmail() : null,
+                        p.getCreatedAt()
+                ))
+                .toList();
+
+        return ResponseEntity.ok(list);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
