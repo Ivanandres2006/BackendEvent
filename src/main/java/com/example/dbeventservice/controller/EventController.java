@@ -60,7 +60,7 @@ public class EventController {
     public ResponseEntity<Map<String, String>> uploadImage(@RequestParam("file") MultipartFile file) {
         try {
             // minimal, safe validations
-            final long MAX = 5L * 1024 * 1024; // 5MB
+            final long MAX = 10L * 1024 * 1024; // 10MB
             final Set<String> ALLOWED = Set.of("image/jpeg", "image/png", "image/webp");
             if (file.isEmpty()) return ResponseEntity.badRequest().body(Map.of("error", "Empty file"));
             if (file.getSize() > MAX) return ResponseEntity.badRequest().body(Map.of("error", "Max 5MB"));
