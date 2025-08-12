@@ -23,6 +23,10 @@ public class TicketDTO {
     private boolean paid;
     private String paymentMethod;
 
+    private boolean used;
+    private String usedAt;     // optional: ISO string for UI
+    private String scannedBy;  // optional
+
     // ✅ Constructor used when just mapping a Ticket (default fallback)
     public TicketDTO(Ticket ticket) {
         this(ticket, false); // default: not resold
@@ -47,5 +51,9 @@ public class TicketDTO {
 
         this.paid = ticket.isPaid(); // 🔁 You must add this field to Ticket entity
         this.paymentMethod = ticket.getPaymentMethod();
+
+        this.used = ticket.isUsed();
+        this.usedAt = ticket.getUsedAt() != null ? ticket.getUsedAt().toString() : null;
+        this.scannedBy = ticket.getScannedBy();
     }
 }
