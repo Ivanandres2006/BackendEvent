@@ -1,5 +1,7 @@
 package com.example.dbeventservice.controller;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import com.example.dbeventservice.auth.jwt.UserDetailsImpl;
 import com.example.dbeventservice.dto.EventAnalyticsDTO;
 import com.example.dbeventservice.dto.PaginatedResponse;
@@ -9,6 +11,7 @@ import lombok.*;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.*;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -50,23 +53,39 @@ public class EventController {
     @Autowired
     private NotificationController notificationController;
 
-    @PostMapping("/upload-image")
+    @Autowired
+    private Cloudinary cloudinary;
+
+    @PostMapping(value = "/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, String>> uploadImage(@RequestParam("file") MultipartFile file) {
         try {
-            String folder = "uploads/";
-            String filename = UUID.randomUUID() + "-" + file.getOriginalFilename();
-            Path path = Paths.get(folder + filename);
+            // minimal, safe validations
+            final long MAX = 5L * 1024 * 1024; // 5MB
+            final Set<String> ALLOWED = Set.of("image/jpeg", "image/png", "image/webp");
+            if (file.isEmpty()) return ResponseEntity.badRequest().body(Map.of("error", "Empty file"));
+            if (file.getSize() > MAX) return ResponseEntity.badRequest().body(Map.of("error", "Max 5MB"));
+            String ct = Optional.ofNullable(file.getContentType()).orElse("").toLowerCase();
+            if (!ALLOWED.contains(ct)) return ResponseEntity.badRequest().body(Map.of("error", "Unsupported type"));
 
-            Files.createDirectories(path.getParent());
-            Files.write(path, file.getBytes());
+            // upload to Cloudinary (folder keeps things tidy)
+            var result = cloudinary.uploader().upload(
+                    file.getBytes(),
+                    ObjectUtils.asMap(
+                            "folder", "events",
+                            "resource_type", "image",
+                            "use_filename", true,
+                            "unique_filename", true,
+                            "overwrite", false
+                    )
+            );
 
-            String baseUrl = "https://backendevent-etce.onrender.com";
-            String imageUrl = baseUrl + "/uploads/" + filename;
+            String secureUrl = (String) result.get("secure_url"); // CDN-backed, HTTPS public URL
+            String publicId = (String) result.get("public_id");   // keep if you want to delete later
 
-            System.out.println("✅ Image uploaded: " + imageUrl);
-            return ResponseEntity.ok(Map.of("imageUrl", imageUrl));
-        } catch (IOException e) {
-            System.err.println("❌ Failed to upload image: " + e.getMessage());
+            System.out.println("✅ Image uploaded: " + secureUrl);
+            return ResponseEntity.ok(Map.of("imageUrl", secureUrl, "publicId", publicId));
+        } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.status(500).body(Map.of("error", "Image upload failed"));
         }
     }
