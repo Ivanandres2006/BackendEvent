@@ -5,6 +5,7 @@ import com.example.dbeventservice.model.Ticket;
 import com.example.dbeventservice.model.User;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 
@@ -14,6 +15,11 @@ public interface ResalePostRepository extends JpaRepository<ResalePost, Long> {
 
     boolean existsByTicketAndSoldFalse(Ticket ticket);
 
-    @EntityGraph(attributePaths = {"seller", "ticket"})
+    @Query("""
+           select rp 
+           from ResalePost rp
+           left join fetch rp.seller
+           left join fetch rp.ticket
+           """)
     List<ResalePost> findAllWithSellerAndTicket();
 }
