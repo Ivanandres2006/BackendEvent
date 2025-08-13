@@ -56,6 +56,14 @@ public class EventController {
     @Autowired
     private Cloudinary cloudinary;
 
+    // EventController (or a small util)
+    private static final String BASE = "https://backendevent-etce.onrender.com";
+    private static String abs(String url) {
+        if (url == null || url.isBlank()) return BASE + "/default-event.jpg";
+        if (url.startsWith("http")) return url;
+        return BASE + (url.startsWith("/") ? url : "/" + url);
+    }
+
     @PostMapping(value = "/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, String>> uploadImage(@RequestParam("file") MultipartFile file) {
         try {
@@ -63,7 +71,9 @@ public class EventController {
             final long MAX = 10L * 1024 * 1024; // 10MB
             final Set<String> ALLOWED = Set.of("image/jpeg", "image/png", "image/webp");
             if (file.isEmpty()) return ResponseEntity.badRequest().body(Map.of("error", "Empty file"));
-            if (file.getSize() > MAX) return ResponseEntity.badRequest().body(Map.of("error", "Max 5MB"));
+            if (file.getSize() > MAX) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Max 10MB")); // ← update text
+            }
             String ct = Optional.ofNullable(file.getContentType()).orElse("").toLowerCase();
             if (!ALLOWED.contains(ct)) return ResponseEntity.badRequest().body(Map.of("error", "Unsupported type"));
 
@@ -183,7 +193,7 @@ public class EventController {
         return ResponseEntity.ok(waitlistEntryRepository.findByEvent(event));
     }
 
-    @PostMapping("upload-guestlist")
+    @PostMapping("/upload-guestlist")
     public ResponseEntity<?> uploadGuestList(@RequestParam("file") MultipartFile file) {
         try {
             String filename = UUID.randomUUID() + "_" + file.getOriginalFilename();
@@ -306,7 +316,7 @@ public class EventController {
         event.setDescription(req.description);
         event.setLocation(req.location);
         event.setDateTime(req.dateTime);
-        event.setImageUrl(req.imageUrl);
+        event.setImageUrl(abs(req.imageUrl));
         event.setCreatedBy(creator);
         event.setState(req.state);
         event.setAddress(req.address);
@@ -492,7 +502,9 @@ public class EventController {
             if (req.description != null && !req.description.equals(event.getDescription())) event.setDescription(req.description);
             if (req.location != null && !req.location.equals(event.getLocation())) event.setLocation(req.location);
             if (req.dateTime != null && !req.dateTime.equals(event.getDateTime())) event.setDateTime(req.dateTime);
-            if (req.imageUrl != null && !req.imageUrl.equals(event.getImageUrl())) event.setImageUrl(req.imageUrl);
+            if (req.imageUrl != null && !abs(req.imageUrl).equals(abs(event.getImageUrl()))) {
+                event.setImageUrl(abs(req.imageUrl)); // ✅ store absolute URL
+            }
             if (req.state != null && !req.state.equals(event.getState())) event.setState(req.state);
             if (req.address != null && !req.address.equals(event.getAddress())) event.setAddress(req.address);
             if (req.country != null && !req.country.equals(event.getCountry())) event.setCountry(req.country);
