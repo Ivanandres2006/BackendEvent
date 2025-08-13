@@ -47,13 +47,19 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } else {
-                System.out.println("❌ Token missing or invalid.");
+                //System.out.println("❌ Token missing or invalid.");
             }
         } catch (Exception e) {
             System.out.println("❌ Cannot set user authentication: " + e.getMessage());
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest req) {
+        String p = req.getRequestURI();
+        return p.startsWith("/events/upload-image");
     }
 
     private String parseJwt(HttpServletRequest request) {

@@ -70,9 +70,9 @@ public class WebSecurityConfig {
                                 "/api/tickets/validate/{ticketId}",
                                 "/api/passes/ticket/{ticketId}",
                                 "/resale/available",
-                                "events/{eventId}/waitlist/request",
-                                "events/{eventId}/waitlist/{entryId}/status",
-                                "events/{eventId}/waitlist"
+                                "/events/{eventId}/waitlist/request",
+                                "/events/{eventId}/waitlist/{entryId}/status",
+                                "/events/{eventId}/waitlist"
 
                         ).permitAll()
                         .requestMatchers("/auth/validate").authenticated()
