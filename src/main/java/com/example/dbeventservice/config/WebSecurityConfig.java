@@ -53,6 +53,7 @@ public class WebSecurityConfig {
                                 "/auth/apple-login",
                                 "/auth/google-login",
                                 "/auth/set-password",
+                                "/events/upload-image",
                                 "/auth/refresh",
                                 "/uploads/**",
                                 "/qr/**",
