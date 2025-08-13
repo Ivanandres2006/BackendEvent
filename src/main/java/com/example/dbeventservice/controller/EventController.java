@@ -67,17 +67,21 @@ public class EventController {
     @PostMapping(value = "/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, String>> uploadImage(@RequestParam("file") MultipartFile file) {
         try {
-            // minimal, safe validations
-            final long MAX = 10L * 1024 * 1024; // 10MB
-            final Set<String> ALLOWED = Set.of("image/jpeg", "image/png", "image/webp");
-            if (file.isEmpty()) return ResponseEntity.badRequest().body(Map.of("error", "Empty file"));
-            if (file.getSize() > MAX) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Max 10MB")); // ← update text
+            if (cloudinary == null) {
+                return ResponseEntity.status(503).body(Map.of("error", "Cloudinary not configured"));
             }
-            String ct = Optional.ofNullable(file.getContentType()).orElse("").toLowerCase();
-            if (!ALLOWED.contains(ct)) return ResponseEntity.badRequest().body(Map.of("error", "Unsupported type"));
+            final long MAX = 10L * 1024 * 1024;
+            final var ALLOWED = Set.of("image/jpeg","image/png","image/webp");
 
-            // upload to Cloudinary (folder keeps things tidy)
+            String ct = (file.getContentType() == null ? "" : file.getContentType().toLowerCase());
+            long size = file.getSize();
+            String name = file.getOriginalFilename();
+            System.out.printf("📤 Upload: name=%s size=%dB type=%s%n", name, size, ct);
+
+            if (file.isEmpty()) return ResponseEntity.badRequest().body(Map.of("error","Empty file"));
+            if (size > MAX)     return ResponseEntity.badRequest().body(Map.of("error","Max 10MB"));
+            if (!ALLOWED.contains(ct)) return ResponseEntity.badRequest().body(Map.of("error","Unsupported type"));
+
             var result = cloudinary.uploader().upload(
                     file.getBytes(),
                     ObjectUtils.asMap(
@@ -88,17 +92,16 @@ public class EventController {
                             "overwrite", false
                     )
             );
-
-            String secureUrl = (String) result.get("secure_url"); // CDN-backed, HTTPS public URL
-            String publicId = (String) result.get("public_id");   // keep if you want to delete later
-
-            System.out.println("✅ Image uploaded: " + secureUrl);
+            String secureUrl = (String) result.get("secure_url");
+            String publicId  = (String) result.get("public_id");
+            System.out.printf("✅ Cloudinary OK: %s (%s)%n", secureUrl, publicId);
             return ResponseEntity.ok(Map.of("imageUrl", secureUrl, "publicId", publicId));
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(500).body(Map.of("error", "Image upload failed"));
         }
     }
+
 
     @PostMapping("/{eventId}/waitlist/request")
     public ResponseEntity<?> requestWaitlist(
