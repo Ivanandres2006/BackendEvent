@@ -59,8 +59,11 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest req) {
         String p = req.getRequestURI();
-        return p.startsWith("/events/upload-image");
+        // skip JWT for upload and for all OPTIONS (preflight)
+        return "OPTIONS".equalsIgnoreCase(req.getMethod())
+                || p.startsWith("/events/upload-image");
     }
+
 
     private String parseJwt(HttpServletRequest request) {
         String headerAuth = request.getHeader("Authorization");
