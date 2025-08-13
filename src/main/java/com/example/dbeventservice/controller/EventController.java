@@ -66,6 +66,7 @@ public class EventController {
 
     @PostMapping(value = "/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, String>> uploadImage(@RequestParam("file") MultipartFile file) {
+        System.out.println("➡️ hit /events/upload-image");   // <— add this
         try {
             if (cloudinary == null) {
                 return ResponseEntity.status(503).body(Map.of("error", "Cloudinary not configured"));
