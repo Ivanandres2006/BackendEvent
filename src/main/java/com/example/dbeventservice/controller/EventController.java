@@ -70,7 +70,7 @@ public class EventController {
             if (cloudinary == null) {
                 return ResponseEntity.status(503).body(Map.of("error", "Cloudinary not configured"));
             }
-            final long MAX = 10L * 1024 * 1024;
+            final long MAX = 20L * 1024 * 1024;
             final var ALLOWED = Set.of("image/jpeg","image/png","image/webp");
 
             String ct = (file.getContentType() == null ? "" : file.getContentType().toLowerCase());
@@ -79,7 +79,7 @@ public class EventController {
             System.out.printf("📤 Upload: name=%s size=%dB type=%s%n", name, size, ct);
 
             if (file.isEmpty()) return ResponseEntity.badRequest().body(Map.of("error","Empty file"));
-            if (size > MAX)     return ResponseEntity.badRequest().body(Map.of("error","Max 10MB"));
+            if (size > MAX) return ResponseEntity.status(413).body(Map.of("error","Max 20MB"));
             if (!ALLOWED.contains(ct)) return ResponseEntity.badRequest().body(Map.of("error","Unsupported type"));
 
             var result = cloudinary.uploader().upload(
@@ -101,6 +101,12 @@ public class EventController {
             return ResponseEntity.status(500).body(Map.of("error", "Image upload failed"));
         }
     }
+
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String,String>> tooBig(Exception ex) {
+        return ResponseEntity.status(413).body(Map.of("error","Maximum upload size exceeded"));
+    }
+
 
 
     @PostMapping("/{eventId}/waitlist/request")
