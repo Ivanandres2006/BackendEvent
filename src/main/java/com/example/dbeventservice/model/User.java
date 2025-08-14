@@ -35,6 +35,20 @@ public class User {
 
     private String password;
 
+    // Profile
+    @Column(length = 512)
+    private String avatarUrl;
+
+    @Column(length = 160)
+    private String bio;
+
+    @Column(nullable = false)
+    private boolean hideProfile = false;
+
+    @Column(nullable = false)
+    private boolean hideAttendance = false;
+
+
     @Column(name = "can_create_events")
     private boolean canCreateEvents = false;
 

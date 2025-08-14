@@ -1,5 +1,6 @@
 package com.example.dbeventservice.repositories;
 
+import com.example.dbeventservice.model.Event;
 import com.example.dbeventservice.model.Ticket;
 import com.example.dbeventservice.model.Enum.TicketStatus;
 import com.example.dbeventservice.model.User;
@@ -35,5 +36,13 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
             "JOIN FETCH t.owner " +
             "WHERE e.id = :eventId")
     List<Ticket> findTicketsWithDetailsByEventId(@Param("eventId") Long eventId);
+
+    @Query("SELECT DISTINCT t.owner FROM Ticket t WHERE t.event.id = :eventId AND t.status = :status")
+    List<User> findDistinctOwnersByEventIdAndStatus(@Param("eventId") Long eventId,
+                                                    @Param("status") TicketStatus status);
+
+    @Query("SELECT DISTINCT t.event FROM Ticket t WHERE t.owner.id = :userId AND t.status = :status")
+    List<Event> findDistinctEventsByOwnerAndStatus(@Param("userId") Long userId,
+                                                   @Param("status") TicketStatus status);
 
 }
