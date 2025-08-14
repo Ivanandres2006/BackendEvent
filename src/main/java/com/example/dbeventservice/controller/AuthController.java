@@ -204,6 +204,10 @@ public class AuthController {
                     .externalProvider("apple")
                     .externalId(externalId)
                     .role(Role.USER)
+                    .avatarUrl("")
+                    .bio("")
+                    .hideProfile(false)
+                    .hideAttendance(false)
                     .build();
 
             userRepository.save(user);
@@ -222,10 +226,11 @@ public class AuthController {
                 user.getEmail(),
                 user.getPhone(),
                 user.getUsername(),
+                user.getPassword() != null && !user.getPassword().isBlank(),
+                // 10th = hasUsername
                 user.getUsername() != null &&
                         !user.getUsername().isBlank() &&
-                        !user.getUsername().startsWith("user_"),
-                user.getPassword() != null && !user.getPassword().isBlank()
+                        !user.getUsername().startsWith("user_")
         ));
     }
 
@@ -264,6 +269,10 @@ public class AuthController {
                     .externalProvider("google")
                     .externalId(externalId)
                     .role(Role.USER)
+                    .avatarUrl("")
+                    .bio("")
+                    .hideProfile(false)
+                    .hideAttendance(false)
                     .build();
 
             userRepository.save(user);
@@ -282,10 +291,11 @@ public class AuthController {
                 user.getEmail(),
                 user.getPhone(),
                 user.getUsername(),
+                user.getPassword() != null && !user.getPassword().isBlank(),
+                // 10th = hasUsername
                 user.getUsername() != null &&
                         !user.getUsername().isBlank() &&
-                        !user.getUsername().startsWith("user_"),
-                user.getPassword() != null && !user.getPassword().isBlank()
+                        !user.getUsername().startsWith("user_")
         ));
     }
 
@@ -501,6 +511,10 @@ public class AuthController {
                 .codeGeneratedAt(LocalDateTime.now())
                 .lastResendAt(LocalDateTime.now())
                 .role(Role.USER)
+                .avatarUrl("")
+                .bio("")
+                .hideProfile(false)
+                .hideAttendance(false)
                 .build();
 
         userRepository.save(user);

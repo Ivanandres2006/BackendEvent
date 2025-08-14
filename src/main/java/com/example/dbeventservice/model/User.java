@@ -42,10 +42,10 @@ public class User {
     @Column(length = 160)
     private String bio;
 
-    @Column(nullable = false)
+    @Column(name = "hide_profile", nullable = false)
     private boolean hideProfile = false;
 
-    @Column(nullable = false)
+    @Column(name = "hide_attendance", nullable = false)
     private boolean hideAttendance = false;
 
 
@@ -69,6 +69,11 @@ public class User {
     @Column(unique = true)
     private String externalId;
 
+    @PrePersist
+    public void prePersistDefaults() {
+        if (avatarUrl == null) avatarUrl = "";
+        if (bio == null) bio = "";
+    }
 
     @Override
     public boolean equals(Object o) {
