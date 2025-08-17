@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import org.springframework.data.domain.Pageable;
 import java.util.List;
 import java.util.Optional;
 
@@ -44,4 +45,39 @@ public interface FollowRepository extends JpaRepository<Follow, Long> {
        """)
     long countFriends(@Param("user") User user);
 
+    boolean existsByFollowerIdAndFollowingId(Long followerId, Long followingId);
+    void deleteByFollowerIdAndFollowingId(Long followerId, Long followingId);
+
+    long countByFollowerId(Long followerId);
+    long countByFollowingId(Long followingId);
+
+    // NEW: incoming pending for a user (the one being followed)
+    List<Follow> findByFollowingIdAndStatusOrderByCreatedAtDesc(Long followingId, FollowStatus status, Pageable pageable);
+
+    // NEW: allow the "followed" user to remove a pending request
+    void deleteByFollowerIdAndFollowingIdAndStatus(Long followerId, Long followingId, FollowStatus status);
+
+
+    // existence / edges
+    boolean existsByFollower_IdAndFollowee_Id(Long followerId, Long followeeId);
+    boolean existsByFollower_IdAndFollowee_IdAndStatus(Long followerId, Long followeeId, FollowStatus status);
+
+    void deleteByFollower_IdAndFollowee_Id(Long followerId, Long followeeId);
+    void deleteByFollower_IdAndFollowee_IdAndStatus(Long followerId, Long followeeId, FollowStatus status);
+
+    // counts
+    long countByFollower_Id(Long followerId);
+    long countByFollowee_Id(Long followeeId);
+
+    // lists (filter by status when needed)
+    List<Follow> findByFollower_IdOrderByIdDesc(Long followerId, Pageable pageable);
+    List<Follow> findByFollowee_IdOrderByIdDesc(Long followeeId, Pageable pageable);
+
+    List<Follow> findByFollower_IdAndStatusOrderByIdDesc(Long followerId, FollowStatus status, Pageable pageable);
+    List<Follow> findByFollowee_IdAndStatusOrderByIdDesc(Long followeeId, FollowStatus status, Pageable pageable);
+
+    // for "incoming requests" (PENDING to me = I'm the followee)
+    default List<Follow> incomingPending(Long meId, Pageable pageable) {
+        return findByFollowee_IdAndStatusOrderByIdDesc(meId, FollowStatus.PENDING, pageable);
+    }
 }

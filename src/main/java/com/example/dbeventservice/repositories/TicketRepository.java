@@ -45,4 +45,23 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     List<Event> findDistinctEventsByOwnerAndStatus(@Param("userId") Long userId,
                                                    @Param("status") TicketStatus status);
 
+    /**
+     * Returns true if the user owns a PAID, non-refunded ticket for the given event.
+     * Adjust the field names if your schema differs:
+     *  - owner -> buyer
+     *  - paid/status/refunded flags
+     */
+    @Query("""
+           select (count(t) > 0)
+           from Ticket t
+           where t.owner.id = :userId
+             and t.event.id = :eventId
+             and (
+                  (t.paid = true)
+                  or (t.status = 'PAID')
+             )
+           """)
+    boolean userHasPaidTicketForEvent(@Param("userId") Long userId,
+                                      @Param("eventId") Long eventId);
+
 }
