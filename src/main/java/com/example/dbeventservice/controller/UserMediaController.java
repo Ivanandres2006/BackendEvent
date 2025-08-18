@@ -23,7 +23,7 @@ public class UserMediaController {
     private final UserRepository userRepo;
 
 
-    @PostMapping(value="/api/users/me/avatar", consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value="avatar", consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, String>> uploadAvatar(@AuthenticationPrincipal UserDetailsImpl me,
                                                             @RequestParam("file") MultipartFile file) {
         try {
