@@ -73,7 +73,8 @@ public class WebSecurityConfig {
                                 "/events/{eventId}/waitlist/request",
                                 "/events/{eventId}/waitlist/{entryId}/status",
                                 "/events/{eventId}/waitlist",
-                                "/api/attendance/events/*/going"
+                                "/api/attendance/events/*/going",
+                                "/api/users/me/**"
                         ).permitAll()
                         .requestMatchers("/auth/validate").authenticated()
                         .anyRequest().authenticated()
