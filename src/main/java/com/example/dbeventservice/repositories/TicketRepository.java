@@ -64,4 +64,5 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     boolean userHasPaidTicketForEvent(@Param("userId") Long userId,
                                       @Param("eventId") Long eventId);
 
+
 }
