@@ -106,7 +106,7 @@ public class AnalyticsController {
 
     // helpers
     private static double priceOf(Ticket t) { try { return t.getTicketTier().getPrice(); } catch (Exception e) { return 0d; } }
-    private static String displayNameOf(User u) {
+    static String displayNameOf(User u) {
         String n = (u.getFirstName() == null ? "" : u.getFirstName()) +
                 (u.getLastName() == null ? "" : " " + u.getLastName());
         if (n.isBlank()) n = u.getUsername();

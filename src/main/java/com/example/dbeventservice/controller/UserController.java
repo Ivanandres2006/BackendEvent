@@ -16,6 +16,9 @@ import com.example.dbeventservice.model.Enum.TicketStatus;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+
+import static com.example.dbeventservice.controller.AnalyticsController.displayNameOf;
 
 @RestController
 @RequestMapping("/user")
@@ -26,6 +29,50 @@ public class UserController {
 
     @Autowired private FollowRepository followRepository;
     @Autowired private TicketRepository ticketRepository;
+
+
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getPublicUser(@PathVariable Long id) {
+        Optional<User> opt = userRepository.findById(id);
+        if (opt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new MessageResponse("User not found"));
+        }
+        User u = opt.get();
+
+        // counts
+        long followersCount = followRepository.countAcceptedFollowers(u);
+        long followingCount = followRepository.countAcceptedFollowing(u);
+        long friendsCount   = followRepository.countFriends(u);
+        long eventsCount    = ticketRepository
+                .findDistinctEventsByOwnerAndStatus(u.getId(), TicketStatus.PAID)
+                .size();
+
+        // respect privacy for public view
+        boolean isPrivate = u.isHideProfile();
+
+        PublicUserResponse dto = PublicUserResponse.builder()
+                .id(u.getId())
+                .username(nz(u.getUsername()))
+                .displayName(displayNameOf(u))
+                .avatarUrl(nz(u.getAvatarUrl()))
+                .bio(isPrivate ? "" : nz(u.getBio()))
+                .isPrivate(isPrivate)
+                .followersCount(followersCount)
+                .followingCount(followingCount)
+                .friendsCount(friendsCount)
+                .eventsCount(eventsCount)
+                .build();
+
+        return ResponseEntity.ok(dto);
+    }
+
+    // Optional convenience: fetch by @username for deep links
+    @GetMapping("/by-username/{username}")
+    public ResponseEntity<?> getPublicUserByUsername(@PathVariable String username) {
+        User u = userRepository.findByUsername(username).orElse(null);
+        if (u == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new MessageResponse("User not found"));
+        return getPublicUser(u.getId()); // reuse logic above
+    }
 
     @GetMapping("/me")
     public ResponseEntity<?> getCurrentUser(@AuthenticationPrincipal UserDetailsImpl principal) {
@@ -142,6 +189,22 @@ public class UserController {
         private List<Long> promotedEvents;
 
         // NEW
+        private long followersCount;
+        private long followingCount;
+        private long friendsCount;
+        private long eventsCount;
+    }
+
+    @Getter @Builder
+    static class PublicUserResponse {
+        private Long id;
+        private String username;
+        private String displayName;
+        private String avatarUrl;
+        private String bio;           // empty if private
+        private boolean isPrivate;    // true if hideProfile == true
+
+        // extra counts for UI (client can ignore if not needed)
         private long followersCount;
         private long followingCount;
         private long friendsCount;
