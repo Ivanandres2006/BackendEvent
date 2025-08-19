@@ -67,4 +67,9 @@ public interface FollowRepository extends JpaRepository<Follow, Long> {
     default List<Follow> incomingPending(Long meId, Pageable pageable) {
         return findByFollowee_IdAndStatusOrderByIdDesc(meId, FollowStatus.PENDING, pageable);
     }
+
+
+    @Query("select f from Follow f where f.followee = :user and f.status = 'PENDING'")
+    List<Follow> findPendingRequests(@Param("user") User user);
+
 }

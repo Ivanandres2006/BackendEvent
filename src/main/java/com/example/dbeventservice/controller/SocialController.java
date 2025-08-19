@@ -48,4 +48,34 @@ public class SocialController {
     public List<UserSummaryDTO> friends(@PathVariable Long userId) {
         return followService.friends(userId).stream().map(UserSummaryDTO::from).toList();
     }
+
+    @DeleteMapping("/follow/{followerId}/reject")
+    public ResponseEntity<?> reject(@AuthenticationPrincipal UserDetailsImpl me,
+                                    @PathVariable Long followerId) {
+        followService.reject(me.getId(), followerId);
+        return ResponseEntity.ok().build();
+    }
+
+    // RELATIONSHIP (tells if outgoing is PENDING/ACCEPTED/NONE)
+    record RelationshipDTO(String outgoing, String incoming) {}
+    @GetMapping("/relationship/{otherId}")
+    public RelationshipDTO relationship(@AuthenticationPrincipal UserDetailsImpl me,
+                                        @PathVariable Long otherId) {
+        var r = followService.relationship(me.getId(), otherId);
+        return new RelationshipDTO(r.outgoing(), r.incoming());
+    }
+
+    // PENDING REQUESTS list for current user
+    record FollowRequestDTO(long followerId, String username, String displayName, String requestedAt) {}
+    @GetMapping("/requests")
+    public List<FollowRequestDTO> requests(@AuthenticationPrincipal UserDetailsImpl me) {
+        return followService.pendingRequests(me.getId()).stream().map(f -> {
+            var u = f.getFollower();
+            String dn = ((u.getFirstName()==null?"":u.getFirstName()) +
+                    (u.getLastName()==null?"":" "+u.getLastName())).trim();
+            if (dn.isBlank()) dn = u.getUsername();
+            return new FollowRequestDTO(u.getId(), u.getUsername(), dn, f.getCreatedAt().toString());
+        }).toList();
+    }
+
 }

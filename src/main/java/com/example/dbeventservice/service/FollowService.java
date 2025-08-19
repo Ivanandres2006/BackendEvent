@@ -70,4 +70,30 @@ public class FollowService {
     public List<User> friends(Long userId) {
         return followRepo.findFriends(userRepo.findById(userId).orElseThrow());
     }
+
+    // add under existing methods
+
+    @Transactional
+    public void reject(Long currentUserId, Long followerId) {
+        User me = userRepo.findById(currentUserId).orElseThrow();
+        User follower = userRepo.findById(followerId).orElseThrow();
+        followRepo.findByFollowerAndFollowee(follower, me).ifPresent(followRepo::delete);
+    }
+
+    public record Relationship(String outgoing, String incoming) {}
+    public Relationship relationship(Long meId, Long otherId) {
+        User me = userRepo.findById(meId).orElseThrow();
+        User other = userRepo.findById(otherId).orElseThrow();
+
+        String out = followRepo.findByFollowerAndFollowee(me, other)
+                .map(f -> f.getStatus().name()).orElse("NONE");  // NONE/PENDING/ACCEPTED
+        String in  = followRepo.findByFollowerAndFollowee(other, me)
+                .map(f -> f.getStatus().name()).orElse("NONE");
+        return new Relationship(out, in);
+    }
+
+    public List<Follow> pendingRequests(Long meId) {
+        return followRepo.findPendingRequests(userRepo.findById(meId).orElseThrow());
+    }
+
 }
