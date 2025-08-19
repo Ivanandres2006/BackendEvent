@@ -68,14 +68,19 @@ public class SocialController {
 
 
     @GetMapping("/requests")
-    public List<FollowRequestDTO> requests(@AuthenticationPrincipal UserDetailsImpl me) {
-        return followService.pendingRequests(me.getId()).stream().map(f -> {
-            var u = f.getFollower();
-            String dn = ((u.getFirstName()==null?"":u.getFirstName()) +
-                    (u.getLastName()==null?"":" "+u.getLastName())).trim();
-            if (dn.isBlank()) dn = u.getUsername();
-            return new FollowRequestDTO(u.getId(), u.getUsername(), dn, f.getCreatedAt().toString());
-        }).toList();
+    public List<FollowRequestDTO> requests(@AuthenticationPrincipal UserDetailsImpl me,
+                                           @RequestParam(defaultValue = "50") int limit) {
+        return followService.pendingRequests(me.getId())
+                .stream()
+                .limit(Math.max(1, Math.min(100, limit)))
+                .map(f -> {
+                    var u = f.getFollower();
+                    String dn = ((u.getFirstName()==null?"":u.getFirstName()) +
+                            (u.getLastName()==null?"":" "+u.getLastName())).trim();
+                    if (dn.isBlank()) dn = u.getUsername();
+                    return new FollowRequestDTO(u.getId(), u.getUsername(), dn, f.getCreatedAt().toString());
+                })
+                .toList();
     }
 
 
