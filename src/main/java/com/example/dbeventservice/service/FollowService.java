@@ -96,4 +96,8 @@ public class FollowService {
         return followRepo.findPendingRequests(userRepo.findById(meId).orElseThrow());
     }
 
+    public int pendingCount(Long meId) {
+        var me = userRepo.findById(meId).orElseThrow();
+        return followRepo.countByFolloweeAndStatus(me, FollowStatus.PENDING);
+    }
 }

@@ -1,6 +1,7 @@
 package com.example.dbeventservice.controller;
 
 import com.example.dbeventservice.auth.jwt.UserDetailsImpl;
+import com.example.dbeventservice.dto.FollowRequestDTO;
 import com.example.dbeventservice.dto.UserSummaryDTO;
 import com.example.dbeventservice.service.FollowService;
 import lombok.RequiredArgsConstructor;
@@ -65,8 +66,7 @@ public class SocialController {
         return new RelationshipDTO(r.outgoing(), r.incoming());
     }
 
-    // PENDING REQUESTS list for current user
-    record FollowRequestDTO(long followerId, String username, String displayName, String requestedAt) {}
+
     @GetMapping("/requests")
     public List<FollowRequestDTO> requests(@AuthenticationPrincipal UserDetailsImpl me) {
         return followService.pendingRequests(me.getId()).stream().map(f -> {
@@ -76,6 +76,14 @@ public class SocialController {
             if (dn.isBlank()) dn = u.getUsername();
             return new FollowRequestDTO(u.getId(), u.getUsername(), dn, f.getCreatedAt().toString());
         }).toList();
+    }
+
+
+    // (Optional) quick badge for a red-dot in your app
+    public record CountDTO(int count) {}
+    @GetMapping("/requests/count")
+    public CountDTO requestsCount(@AuthenticationPrincipal UserDetailsImpl me) {
+        return new CountDTO(followService.pendingCount(me.getId()));
     }
 
 }
