@@ -1,5 +1,6 @@
 package com.example.dbeventservice.service;
 
+import com.example.dbeventservice.dto.SocialCountsDTO;
 import com.example.dbeventservice.model.Enum.FollowStatus;
 import com.example.dbeventservice.model.Follow;
 import com.example.dbeventservice.model.User;
@@ -91,6 +92,16 @@ public class FollowService {
                 .map(f -> f.getStatus().name()).orElse("NONE");
         return new Relationship(out, in);
     }
+
+    // src/main/java/.../service/FollowService.java
+    public SocialCountsDTO counts(Long userId) {
+        var u = userRepo.findById(userId).orElseThrow();
+        long followers = followRepo.countAcceptedFollowers(u);
+        long following = followRepo.countAcceptedFollowing(u);
+        long friends   = followRepo.countFriends(u);
+        return new SocialCountsDTO(followers, following, friends);
+    }
+
 
     public List<Follow> pendingRequests(Long meId) {
         return followRepo.findPendingRequests(userRepo.findById(meId).orElseThrow());

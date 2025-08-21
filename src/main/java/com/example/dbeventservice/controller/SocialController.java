@@ -2,6 +2,7 @@ package com.example.dbeventservice.controller;
 
 import com.example.dbeventservice.auth.jwt.UserDetailsImpl;
 import com.example.dbeventservice.dto.FollowRequestDTO;
+import com.example.dbeventservice.dto.SocialCountsDTO;
 import com.example.dbeventservice.dto.UserSummaryDTO;
 import com.example.dbeventservice.service.FollowService;
 import lombok.RequiredArgsConstructor;
@@ -17,22 +18,33 @@ import java.util.List;
 public class SocialController {
     private final FollowService followService;
 
+
+    // src/main/java/.../controller/SocialController.java
+    @GetMapping("/stats/{userId}")
+    public SocialCountsDTO stats(@PathVariable Long userId) {
+        return followService.counts(userId);
+    }
+
+    // OPTIONAL: return updated counts after actions
     @PostMapping("/follow/{userId}")
-    public ResponseEntity<?> follow(@AuthenticationPrincipal UserDetailsImpl me, @PathVariable Long userId) {
+    public ResponseEntity<SocialCountsDTO> follow(@AuthenticationPrincipal UserDetailsImpl me,
+                                                  @PathVariable Long userId) {
         followService.requestFollow(me.getId(), userId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(followService.counts(userId));   // counts for target profile
     }
 
     @PostMapping("/follow/{followerId}/accept")
-    public ResponseEntity<?> accept(@AuthenticationPrincipal UserDetailsImpl me, @PathVariable Long followerId) {
+    public ResponseEntity<SocialCountsDTO> accept(@AuthenticationPrincipal UserDetailsImpl me,
+                                                  @PathVariable Long followerId) {
         followService.accept(me.getId(), followerId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(followService.counts(me.getId())); // my counts changed
     }
 
     @DeleteMapping("/follow/{userId}")
-    public ResponseEntity<?> unfollow(@AuthenticationPrincipal UserDetailsImpl me, @PathVariable Long userId) {
+    public ResponseEntity<SocialCountsDTO> unfollow(@AuthenticationPrincipal UserDetailsImpl me,
+                                                    @PathVariable Long userId) {
         followService.unfollow(me.getId(), userId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(followService.counts(me.getId()));
     }
 
     @GetMapping("/followers/{userId}")
