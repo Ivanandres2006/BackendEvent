@@ -160,6 +160,49 @@ public class NotificationController {
         }
     }
 
+    // NEW: send social push to a specific token, carrying data payload
+    public void sendPushWithSocial(String token,
+                                   String title,
+                                   String body,
+                                   Long actorId,
+                                   String actorUsername,
+                                   String kind) {
+        try {
+            if (FirebaseApp.getApps().isEmpty()) initFirebase(); // reuse your init
+
+            Message message = Message.builder()
+                    .setToken(token)
+                    .setNotification(Notification.builder()
+                            .setTitle(title)
+                            .setBody(body)
+                            .build())
+                    .putData("type", "SOCIAL")                 // <-- iOS will branch on this
+                    .putData("kind", kind)                     // FOLLOW_REQUEST / FOLLOW_ACCEPTED / FOLLOWED_YOU
+                    .putData("actorId", String.valueOf(actorId))
+                    .putData("actorUsername", actorUsername == null ? "" : actorUsername)
+                    .build();
+
+            String response = FirebaseMessaging.getInstance().send(message);
+            System.out.println("✅ Social push sent: " + response);
+        } catch (Exception e) {
+            System.out.println("❌ Social push failed:");
+            e.printStackTrace();
+        }
+    }
+
+    // NEW: send to all tokens for a username
+    public void sendSocialToUsername(String username,
+                                     String title,
+                                     String body,
+                                     Long actorId,
+                                     String actorUsername,
+                                     String kind) {
+        List<FCMToken> tokens = tokenRepo.findAllByUsername(username);
+        for (FCMToken t : tokens) {
+            sendPushWithSocial(t.getToken(), title, body, actorId, actorUsername, kind);
+        }
+    }
+
     public void sendPushToUsername(String username, String title, String body) {
         List<FCMToken> tokens = tokenRepo.findAllByUsername(username);
         for (FCMToken token : tokens) {

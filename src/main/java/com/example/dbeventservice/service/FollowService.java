@@ -19,6 +19,8 @@ public class FollowService {
     private final FollowRepository followRepo;
     private final UserRepository userRepo;
 
+    private final SocialNotificationService socialNotif; // <-- add this (constructor injected by Lombok)
+
     // ---- Mutations ----
 
     @Transactional
@@ -29,7 +31,9 @@ public class FollowService {
         User follower = userRepo.findById(followerId).orElseThrow();
         User followee = userRepo.findById(followeeId).orElseThrow();
 
-        // my (follower -> followee) relation
+        boolean becameAcceptedNow = false;
+        boolean reverseWasPending = false;
+
         Follow mine = followRepo.findByFollowerAndFollowee(follower, followee).orElse(null);
         if (mine == null) {
             mine = new Follow();
@@ -38,20 +42,32 @@ public class FollowService {
             mine.setStatus(FollowStatus.PENDING);
         }
 
-        // reverse relation (followee -> follower)
         var reverseOpt = followRepo.findByFollowerAndFollowee(followee, follower);
         if (reverseOpt.isPresent()) {
             var reverse = reverseOpt.get();
-            // if reverse exists (PENDING or ACCEPTED), make both ACCEPTED (mutual)
             if (reverse.getStatus() == FollowStatus.PENDING) {
                 reverse.setStatus(FollowStatus.ACCEPTED);
                 followRepo.save(reverse);
+                reverseWasPending = true;
             }
             mine.setStatus(FollowStatus.ACCEPTED);
+            becameAcceptedNow = true;
         }
 
         followRepo.save(mine);
+
+        // --- notifications ---
+        if (becameAcceptedNow) {
+            if (reverseWasPending) {
+                // The followee previously requested the follower. The follower just "accepted" it by following back.
+                socialNotif.notifyAccepted(follower, followee); // to followee: "follower accepted your request"
+            }
+            socialNotif.notifyFollowedYou(follower, followee);  // to followee
+        } else {
+            socialNotif.notifyFollowRequest(follower, followee); // to followee
+        }
     }
+
 
     @Transactional
     public void accept(Long currentUserId, Long followerId) {
@@ -60,6 +76,9 @@ public class FollowService {
         Follow f = followRepo.findByFollowerAndFollowee(follower, me).orElseThrow();
         f.setStatus(FollowStatus.ACCEPTED);
         followRepo.save(f);
+
+        socialNotif.notifyAccepted(follower, follower);
+        socialNotif.notifyFollowedYou(follower, follower);
     }
 
     @Transactional
