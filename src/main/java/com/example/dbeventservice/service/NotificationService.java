@@ -16,6 +16,9 @@ import com.google.firebase.messaging.Notification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+// NotificationService.java (add imports)
+import com.google.firebase.messaging.*;
+import java.time.Instant;
 
 import java.io.InputStream;
 import java.util.*;
@@ -65,20 +68,6 @@ public class NotificationService {
             if (data != null) data.forEach(b::putData);
             FirebaseMessaging.getInstance().send(b.build());
         } catch (Exception e) { e.printStackTrace(); }
-    }
-
-    public void sendPushToUsername(String username, String title, String body) {
-        List<FCMToken> tokens = tokenRepo.findAllByUsername(username);
-        for (FCMToken t : tokens) sendPush(t.getToken(), title, body);
-    }
-
-    public void sendPushToUsernameWithData(String username, String title, String body, Map<String,String> data) {
-        List<FCMToken> tokens = tokenRepo.findAllByUsername(username);
-        for (FCMToken t : tokens) sendPushWithData(t.getToken(), title, body, data);
-    }
-
-    public void sendPushToUsernamesWithData(Collection<String> usernames, String title, String body, Map<String,String> data) {
-        for (String u : usernames) sendPushToUsernameWithData(u, title, body, data);
     }
 
     // ---------- Helpers ----------
@@ -249,4 +238,83 @@ public class NotificationService {
         double pct = (double) sold / (double) capacity;
         return pct >= 0.80 || left <= 20;
     }
+
+
+
+    // --- APNs / Android configs ---
+    private ApnsConfig apnsConfig(String collapseId) {
+        ApnsConfig.Builder b = ApnsConfig.builder()
+                .putHeader("apns-priority", "10")          // immediate delivery
+                .putHeader("apns-push-type", "alert")      // required on iOS 13+
+                .putHeader("apns-expiration", String.valueOf(Instant.now().plusSeconds(3600).getEpochSecond()))
+                .setAps(Aps.builder().setSound("default").build());
+        if (collapseId != null) b.putHeader("apns-collapse-id", collapseId);
+        return b.build();
+    }
+
+    private AndroidConfig androidConfig() {
+        return AndroidConfig.builder()
+                .setPriority(AndroidConfig.Priority.HIGH)
+                .setTtl(3600_000) // 1h
+                .build();
+    }
+
+    // --- Multicast sender with cleanup & timing ---
+    private void sendMulticast(List<String> tokens, String title, String body, Map<String,String> data, String collapseId) {
+        if (tokens == null || tokens.isEmpty()) return;
+
+        try {
+            long t0 = System.currentTimeMillis();
+            MulticastMessage.Builder mb = MulticastMessage.builder()
+                    .addAllTokens(tokens)
+                    .setNotification(Notification.builder().setTitle(title).setBody(body).build())
+                    .setApnsConfig(apnsConfig(collapseId))
+                    .setAndroidConfig(androidConfig());
+            if (data != null) data.forEach(mb::putData);
+
+            BatchResponse br = FirebaseMessaging.getInstance().sendEachForMulticast(mb.build());
+            long took = System.currentTimeMillis() - t0;
+            System.out.printf("FCM multicast to %d tokens → success=%d, took %d ms%n",
+                    tokens.size(), br.getSuccessCount(), took);
+
+            // prune invalid tokens so future sends are faster
+            for (int i = 0; i < br.getResponses().size(); i++) {
+                SendResponse resp = br.getResponses().get(i);
+                if (!resp.isSuccessful()) {
+                    FirebaseMessagingException fme = resp.getException(); // may be null
+                    if (fme != null) {
+                        MessagingErrorCode code = fme.getMessagingErrorCode();
+                        if (code == MessagingErrorCode.UNREGISTERED || code == MessagingErrorCode.INVALID_ARGUMENT) {
+                            try {
+                                tokenRepo.deleteByToken(tokens.get(i));
+                            } catch (Exception ignore) {}
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void sendPushToUsername(String username, String title, String body) {
+        var tokens = tokenRepo.findAllByUsername(username).stream().map(FCMToken::getToken).toList();
+        sendMulticast(tokens, title, body, null, null);
+    }
+
+    public void sendPushToUsernameWithData(String username, String title, String body, Map<String,String> data) {
+        var tokens = tokenRepo.findAllByUsername(username).stream().map(FCMToken::getToken).toList();
+        String collapse = data != null && data.containsKey("eventId") ? "event-" + data.get("eventId") : null;
+        sendMulticast(tokens, title, body, data, collapse);
+    }
+
+    public void sendPushToUsernamesWithData(Collection<String> usernames, String title, String body, Map<String,String> data) {
+        if (usernames == null || usernames.isEmpty()) return;
+        // add this repo method (below)
+        var tokens = tokenRepo.findAllByUsernameIn(usernames).stream().map(FCMToken::getToken).toList();
+        String collapse = data != null && data.containsKey("eventId") ? "event-" + data.get("eventId") : null;
+        sendMulticast(tokens, title, body, data, collapse);
+    }
+
+
 }
