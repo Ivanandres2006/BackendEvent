@@ -6,6 +6,7 @@ import com.example.dbeventservice.model.User;
 import com.example.dbeventservice.repositories.ResalePostRepository;
 import com.example.dbeventservice.repositories.TicketRepository;
 import com.example.dbeventservice.repositories.UserRepository;
+import org.springframework.transaction.annotation.Transactional; // 👈 NEW
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +26,10 @@ public class ResalePostService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private NotificationService notificationService; // 👈 NEW
+
+    @Transactional // 👈 NEW
     public ResalePost createResalePost(Long ticketId, double price, String title, String description, Long userId) {
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new IllegalArgumentException("Ticket not found"));
@@ -34,12 +39,8 @@ public class ResalePostService {
         if (ticket.getOwner() == null || !ticket.getOwner().getId().equals(userId)) {
             throw new IllegalArgumentException("You don't own this ticket.");
         }
-        if (!ticket.isPaid()) {
-            throw new IllegalArgumentException("Only paid tickets can be listed.");
-        }
-        if (ticket.isUsed()) {
-            throw new IllegalArgumentException("Used tickets cannot be listed.");
-        }
+        if (!ticket.isPaid())             throw new IllegalArgumentException("Only paid tickets can be listed.");
+        if (ticket.isUsed())              throw new IllegalArgumentException("Used tickets cannot be listed.");
         if (resalePostRepository.existsByTicketAndSoldFalse(ticket)) {
             throw new IllegalArgumentException("This ticket is already listed for resale.");
         }
@@ -54,7 +55,14 @@ public class ResalePostService {
                 .sold(false)
                 .build();
 
-        return resalePostRepository.save(post);
+        ResalePost saved = resalePostRepository.save(post);
+
+        // 🔥 Notify audience if the event is hot (method itself checks “hot” again)
+        notificationService.notifyHotEventResaleAdded(
+                ticket.getEvent().getId(), saved.getId(), userId
+        ); // -> data { type:"SOCIAL", kind:"HOT_EVENT_RESALE_ADDED", eventId, resaleId }
+
+        return saved;
     }
 
 
@@ -72,10 +80,13 @@ public class ResalePostService {
         return resalePostRepository.findById(postId);
     }
 
+    @Transactional // 👈 NEW
     public void markAsSold(Long postId) {
         resalePostRepository.findById(postId).ifPresent(post -> {
             post.setSold(true);
             resalePostRepository.save(post);
+
+            notificationService.notifyResaleSold(postId);
         });
     }
 }

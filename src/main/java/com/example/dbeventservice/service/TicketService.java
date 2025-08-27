@@ -29,6 +29,9 @@ public class TicketService {
     private final UserRepository userRepository;
 
     @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
     private PromoterRepository promoterRepository;
 
     @Autowired
@@ -149,6 +152,11 @@ public class TicketService {
                 });
             }
 
+            // notify only if the tickets are actually paid now
+            if (isFree) {
+                firePurchaseNotifs(event, user);
+            }
+
             response.put("manual", isManualPayment);
             response.put("free", isFree);
             return response;
@@ -183,6 +191,22 @@ public class TicketService {
         response.put("clientSecret", intent.getClientSecret());
         return response;
     }
+
+    private void firePurchaseNotifs(Event event, User buyer) {
+        try {
+            // 1) Owner: “New ticket sold”
+            notificationService.notifyOwnerTicketPurchased(event.getId(), buyer.getId());
+
+            // 2) Owner milestones: 50% / 80% / sold out (sent once each)
+            notificationService.checkAndNotifyMilestones(event.getId());
+
+            // 3) Followers of buyer: “Ivan is going…”
+            notificationService.notifyFriendsGoing(buyer.getId(), event.getId());
+        } catch (Exception e) {
+            logger.warn("⚠️ Failed to send purchase notifications", e);
+        }
+    }
+
 
     public Map<String, Object> createReunionCheckout(
             Long userId,
@@ -319,9 +343,11 @@ public class TicketService {
                     tickets.add(ticket);
                 }
 
+
                 if (!event.getAttendees().contains(user)) {
                     event.getAttendees().add(user);
                     eventRepository.save(event);
+                    firePurchaseNotifs(event, user);
                 }
 
                 tier.setAvailableQuantity(Math.max(tier.getAvailableQuantity() - quantity, 0));

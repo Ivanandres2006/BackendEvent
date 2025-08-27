@@ -13,6 +13,7 @@ public interface ResalePostRepository extends JpaRepository<ResalePost, Long> {
     List<ResalePost> findBySoldFalse();
     List<ResalePost> findBySeller(User seller);
 
+
     boolean existsByTicketAndSoldFalse(Ticket ticket);
 
     @Query("""

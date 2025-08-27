@@ -64,5 +64,17 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     boolean userHasPaidTicketForEvent(@Param("userId") Long userId,
                                       @Param("eventId") Long eventId);
 
+    // 👇 NEW: count paid/sold tickets for an event
+    @Query("""
+           select count(t)
+           from Ticket t
+           where t.event.id = :eventId
+             and (
+                  (t.paid = true)
+                  or (t.status = 'PAID')
+             )
+           """)
+    long countPaidTicketsByEventId(@Param("eventId") Long eventId);
+
 
 }

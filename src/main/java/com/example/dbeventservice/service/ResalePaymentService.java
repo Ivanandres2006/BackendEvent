@@ -5,7 +5,6 @@ import com.example.dbeventservice.model.*;
 import com.example.dbeventservice.model.Enum.OfferStatus;
 import com.example.dbeventservice.model.Enum.TicketStatus;
 import com.example.dbeventservice.repositories.*;
-import com.example.dbeventservice.util.QRCodeGenerator;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Customer;
@@ -17,6 +16,7 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional; // 👈 NEW
 
 import java.util.HashMap;
 import java.util.Map;
@@ -32,15 +32,9 @@ public class ResalePaymentService {
     private final ResalePostRepository resalePostRepository;
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
-    @Autowired
-    private ChatRoomRepository chatRoomRepository;
-
-    @Autowired
-    private CounterOfferRepository counterOfferRepository;
-
-    @Autowired
-    private NotificationService notificationService;
-
+    @Autowired private ChatRoomRepository chatRoomRepository;
+    @Autowired private CounterOfferRepository counterOfferRepository;
+    @Autowired private NotificationService notificationService;
 
     public ResalePaymentService(
             ResalePostRepository resalePostRepository,
@@ -55,9 +49,7 @@ public class ResalePaymentService {
     }
 
     @PostConstruct
-    public void init() {
-        Stripe.apiKey = stripeSecretKey;
-    }
+    public void init() { Stripe.apiKey = stripeSecretKey; }
 
     public PaymentIntentResponse createPaymentIntentForResale(Long resalePostId, Long buyerId) throws StripeException {
         ResalePost post = resalePostRepository.findById(resalePostId)
@@ -67,11 +59,7 @@ public class ResalePaymentService {
         if (Objects.equals(post.getSeller().getId(), buyerId))
             throw new IllegalArgumentException("You cannot buy your own resale post");
 
-        // 👇 Try to find chat; if missing, no exception
-        Optional<ChatRoom> chatRoomOpt =
-                chatRoomRepository.findByResalePostIdAndBuyerId(resalePostId, buyerId);
-
-        // 👇 Only look for accepted counteroffer if a room exists
+        Optional<ChatRoom> chatRoomOpt = chatRoomRepository.findByResalePostIdAndBuyerId(resalePostId, buyerId);
         Optional<CounterOffer> accepted = chatRoomOpt.flatMap(room ->
                 counterOfferRepository.findTopByChatRoomAndSenderIdAndStatusOrderByCreatedAtDesc(
                         room, buyerId, OfferStatus.ACCEPTED
@@ -100,55 +88,42 @@ public class ResalePaymentService {
                 .build();
 
         PaymentIntent intent = PaymentIntent.create(params);
-
         return new PaymentIntentResponse(intent.getClientSecret(), customer.getId(), key.getSecret());
     }
 
-
+    @Transactional // 👈 NEW
     public Ticket processPaymentAndTransferTicket(Long resalePostId, Long buyerId) {
         ResalePost post = resalePostRepository.findById(resalePostId)
                 .orElseThrow(() -> new IllegalArgumentException("Post not found"));
 
         if (post.isSold()) throw new IllegalArgumentException("Ticket already sold");
-
         if (Objects.equals(post.getSeller().getId(), buyerId))
             throw new IllegalArgumentException("You cannot buy your own resale post");
 
         Ticket ticket = post.getTicket();
-
-        // ✅ Transfer ownership
         User buyer = userRepository.findById(buyerId)
                 .orElseThrow(() -> new IllegalArgumentException("Buyer not found"));
 
+        // ✅ Transfer ownership
         ticket.setOwner(buyer);
         ticket.setStatus(TicketStatus.PAID);
         ticket.setQrCodeUrl("/api/tickets/qr/" + ticket.getId());
         ticketRepository.save(ticket);
 
+        // ✅ Mark post as sold
         post.setSold(true);
         resalePostRepository.save(post);
 
-        // 👉 SEND PUSH NOTIFICATION TO SELLER
-        User seller = post.getSeller();
-        String eventTitle = ticket.getEvent().getTitle();
-        if (seller != null && seller.getUsername() != null && buyer != null) {
-            String msg = String.format(
-                    "You'r ticket for %s was purchase by %s %s (@%s).",
-                    eventTitle,
-                    buyer.getFirstName(),
-                    buyer.getLastName(),
-                    buyer.getUsername()
-            );
-            notificationService.sendPushToUsername(
-                    seller.getUsername(),
-                    "🎟️ ¡Ticket sold!",
-                    msg
-            );
+        // ♻️ Notify seller and owner (with buyer when inferable) + data {type:"SOCIAL", ...}
+        notificationService.notifyResaleSold(resalePostId);
+
+        // 👥 “Friend is going” — buyer just got a (paid) ticket for this event
+        if (ticket.getEvent() != null) {
+            notificationService.notifyFriendsGoing(buyerId, ticket.getEvent().getId());
         }
 
         return ticket;
     }
-
 
     public void confirmResalePayment(String paymentIntentId) {
         try {
@@ -157,11 +132,10 @@ public class ResalePaymentService {
 
             Map<String, String> metadata = intent.getMetadata();
             Long resalePostId = Long.parseLong(metadata.get("resalePostId"));
-            Long buyerId = Long.parseLong(metadata.get("buyerId"));
+            Long buyerId      = Long.parseLong(metadata.get("buyerId"));
 
             processPaymentAndTransferTicket(resalePostId, buyerId);
             System.out.println("✅ Resale confirmed via webhook");
-
         } catch (Exception e) {
             System.out.println("❌ Resale confirm webhook error: " + e.getMessage());
         }

@@ -190,6 +190,49 @@ public class NotificationController {
         }
     }
 
+    // src/main/java/com/example/dbeventservice/controller/NotificationController.java
+// (additions only; keep your existing methods)
+
+    public void sendPushWithData(String token, String title, String body, Map<String,String> data) {
+        try {
+            if (FirebaseApp.getApps().isEmpty()) initFirebaseIfNeeded();
+
+            Message.Builder b = Message.builder()
+                    .setToken(token)
+                    .setNotification(Notification.builder().setTitle(title).setBody(body).build());
+
+            if (data != null) data.forEach(b::putData);
+
+            String response = FirebaseMessaging.getInstance().send(b.build());
+            System.out.println("✅ Push (data) sent: " + response);
+        } catch (Exception e) {
+            System.out.println("❌ sendPushWithData failed");
+            e.printStackTrace();
+        }
+    }
+
+    private void initFirebaseIfNeeded() throws Exception {
+        InputStream serviceAccount = getClass().getClassLoader().getResourceAsStream("firebase_key.json");
+        if (serviceAccount == null) throw new IllegalStateException("firebase_key.json missing");
+        FirebaseOptions options = FirebaseOptions.builder()
+                .setCredentials(GoogleCredentials.fromStream(serviceAccount)).build();
+        FirebaseApp.initializeApp(options);
+    }
+
+    public void sendPushToUsernameWithData(String username, String title, String body, Map<String,String> data) {
+        List<FCMToken> tokens = tokenRepo.findAllByUsername(username);
+        for (FCMToken t : tokens) {
+            sendPushWithData(t.getToken(), title, body, data);
+        }
+    }
+
+    public void sendPushToUsernamesWithData(List<String> usernames, String title, String body, Map<String,String> data) {
+        for (String u : usernames) {
+            sendPushToUsernameWithData(u, title, body, data);
+        }
+    }
+
+
     // NEW: send to all tokens for a username
     public void sendSocialToUsername(String username,
                                      String title,
