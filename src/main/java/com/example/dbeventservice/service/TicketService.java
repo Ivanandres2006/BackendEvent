@@ -4,6 +4,10 @@ import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.example.dbeventservice.dto.FeeBreakdown;
+import com.example.dbeventservice.model.Enum.PaymentMethod;
+import com.example.dbeventservice.service.FeeCalculator;
+
 import com.example.dbeventservice.model.*;
 import com.example.dbeventservice.model.Enum.TicketStatus;
 import com.example.dbeventservice.repositories.*;
@@ -46,6 +50,10 @@ public class TicketService {
     @Autowired
     private ReunionGuestRepository reunionGuestRepository;
 
+    @Autowired
+    private FeeCalculator feeCalculator;
+
+
     private static final Logger logger = LoggerFactory.getLogger(TicketService.class);
 
 
@@ -56,13 +64,16 @@ public class TicketService {
             TicketRepository ticketRepository,
             TicketTierRepository ticketTierRepository,
             EventRepository eventRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            FeeCalculator feeCalculator
     ) {
         this.ticketRepository = ticketRepository;
         this.ticketTierRepository = ticketTierRepository;
         this.eventRepository = eventRepository;
         this.userRepository = userRepository;
+        this.feeCalculator = feeCalculator;
     }
+
 
     @PostConstruct
     public void init() {
@@ -124,7 +135,6 @@ public class TicketService {
                 ticket.setQrCodeUrl("/api/tickets/qr/" + ticket.getId());
                 ticketRepository.save(ticket);
 
-
                 tickets.add(ticket);
             }
 
@@ -152,10 +162,16 @@ public class TicketService {
                 });
             }
 
-            // notify only if the tickets are actually paid now
             if (isFree) {
                 firePurchaseNotifs(event, user);
             }
+
+            // ✅ ADD THIS (compute and include the same breakdown for UI)
+            com.example.dbeventservice.model.Enum.PaymentMethod _method =
+                    com.example.dbeventservice.model.Enum.PaymentMethod.from(paymentMethod);
+            long _unitPriceCents = Math.round((tier.getPrice() == null ? 0.0 : tier.getPrice()) * 100.0);
+            FeeBreakdown _fee = feeCalculator.quote(_unitPriceCents, quantity, _method);
+            response.put("breakdown", _fee);
 
             response.put("manual", isManualPayment);
             response.put("free", isFree);
@@ -163,7 +179,16 @@ public class TicketService {
         }
 
         // ✅ Stripe Payment (card)
-        long amount = (long) (tier.getPrice() * quantity * 100);
+        // ✅ Compute unified service fee; Stripe fee folded in for card
+        PaymentMethod _method = PaymentMethod.from(paymentMethod);
+        long _unitPriceCents = Math.round((tier.getPrice() == null ? 0.0 : tier.getPrice()) * 100.0);
+        FeeBreakdown _fee = feeCalculator.quote(_unitPriceCents, quantity, _method);
+
+        // Return the breakdown so the app can show it post-checkout too
+        response.put("breakdown", _fee);
+
+        // Stripe amount must be the TOTAL (subtotal + service fee)
+        long amount = _fee.getTotalCents();
 
         PaymentIntentCreateParams.Builder builder = PaymentIntentCreateParams.builder()
                 .setAmount(amount)
@@ -174,6 +199,9 @@ public class TicketService {
                 .putMetadata("ticketTierId", String.valueOf(ticketTierId))
                 .putMetadata("quantity", String.valueOf(quantity))
                 .putMetadata("email", email)
+                .putMetadata("serviceFeeCents", String.valueOf(_fee.getServiceFeeCents()))
+                .putMetadata("platformFeeCents", String.valueOf(_fee.getPlatformFeeCents()))
+                .putMetadata("stripeFeeCents", String.valueOf(_fee.getStripeFeeCents()))
                 .setSetupFutureUsage(PaymentIntentCreateParams.SetupFutureUsage.OFF_SESSION)
                 .setAutomaticPaymentMethods(
                         PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
