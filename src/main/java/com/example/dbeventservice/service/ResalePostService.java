@@ -85,39 +85,27 @@ public class ResalePostService {
 
 
     public List<ResalePost> getAllAvailablePosts() {
-        // Try the DB-side future-event filter first (preferred)
         try {
             return resalePostRepository.findAvailableWithFutureEvent(LocalDateTime.now());
         } catch (Exception ignored) {
-            // If the JPQL join can't run (field name differs, etc.), fall back to in-memory event-date filter.
             return resalePostRepository.findBySoldFalseAndPausedFalseOrderByCreatedAtDesc()
                     .stream()
-                    .filter(this::eventIsInFuture)
+                    .filter(this::eventIsInFuture)   // uses the helper above
                     .toList();
         }
     }
 
     private boolean eventIsInFuture(ResalePost p) {
-        try {
-            var ticket = p.getTicket();
-            if (ticket == null || ticket.getEvent() == null) return false;
+        var t = p.getTicket();
+        if (t == null) return false;
 
-            var event = ticket.getEvent();
+        var e = t.getEvent();
+        if (e == null) return false;
 
-            // Try common names (adjust/remove to match your model)
-            LocalDateTime whenDateTime = null;
-            try { whenDateTime = event.getDateTime(); } catch (Throwable ignored) {}
-            try { if (whenDateTime == null) whenDateTime = event.getDateTime(); } catch (Throwable ignored) {}
-            if (whenDateTime != null) {
-                return whenDateTime.isAfter(LocalDateTime.now());
-            }
-
-
-
-        } catch (Exception e) {
-            return false;
-        }
+        LocalDateTime when = e.getDateTime();   // <-- use Event.dateTime
+        return when != null && when.isAfter(LocalDateTime.now());
     }
+
     public List<ResalePost> getUserPosts(Long userId) {
         User user = userRepository.findById(userId).orElseThrow();
         return resalePostRepository.findBySeller(user);
