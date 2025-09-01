@@ -19,6 +19,8 @@ public class ResalePostDTO {
     private Long sellerId;
     private Long eventId; // ✅ ADD THIS
     private boolean sold; // ✅ Add this
+    private boolean paused;  // ✅ let the app hide paused posts immediately if needed
+
 
     public ResalePostDTO(ResalePost post) {
         this.id = post.getId();
@@ -32,5 +34,7 @@ public class ResalePostDTO {
         this.sellerId = post.getSeller().getId();
         this.eventId = post.getTicket().getEvent().getId();
         this.sold = post.isSold();
+        this.paused = post.isPaused();
+
     }
 }

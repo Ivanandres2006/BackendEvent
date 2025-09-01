@@ -10,9 +10,20 @@ import org.springframework.transaction.annotation.Transactional; // 👈 NEW
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+
+
+import com.example.dbeventservice.model.ResalePost;
+import com.example.dbeventservice.repositories.ResalePostRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 public class ResalePostService {
@@ -57,6 +68,12 @@ public class ResalePostService {
 
         ResalePost saved = resalePostRepository.save(post);
 
+        if (ticket.getEvent() != null && ticket.getEvent().getDateTime() != null) {
+            if (!ticket.getEvent().getDateTime().isAfter(LocalDateTime.now())) {
+                throw new IllegalArgumentException("Event has already passed; cannot list for resale.");
+            }
+        }
+
         // 🔥 Notify audience if the event is hot (method itself checks “hot” again)
         notificationService.notifyHotEventResaleAdded(
                 ticket.getEvent().getId(), saved.getId(), userId
@@ -68,9 +85,39 @@ public class ResalePostService {
 
 
     public List<ResalePost> getAllAvailablePosts() {
-        return resalePostRepository.findBySoldFalse();
+        // Try the DB-side future-event filter first (preferred)
+        try {
+            return resalePostRepository.findAvailableWithFutureEvent(LocalDateTime.now());
+        } catch (Exception ignored) {
+            // If the JPQL join can't run (field name differs, etc.), fall back to in-memory event-date filter.
+            return resalePostRepository.findBySoldFalseAndPausedFalseOrderByCreatedAtDesc()
+                    .stream()
+                    .filter(this::eventIsInFuture)
+                    .toList();
+        }
     }
 
+    private boolean eventIsInFuture(ResalePost p) {
+        try {
+            var ticket = p.getTicket();
+            if (ticket == null || ticket.getEvent() == null) return false;
+
+            var event = ticket.getEvent();
+
+            // Try common names (adjust/remove to match your model)
+            LocalDateTime whenDateTime = null;
+            try { whenDateTime = event.getDateTime(); } catch (Throwable ignored) {}
+            try { if (whenDateTime == null) whenDateTime = event.getDateTime(); } catch (Throwable ignored) {}
+            if (whenDateTime != null) {
+                return whenDateTime.isAfter(LocalDateTime.now());
+            }
+
+
+
+        } catch (Exception e) {
+            return false;
+        }
+    }
     public List<ResalePost> getUserPosts(Long userId) {
         User user = userRepository.findById(userId).orElseThrow();
         return resalePostRepository.findBySeller(user);

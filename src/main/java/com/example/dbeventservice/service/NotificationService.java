@@ -1,11 +1,6 @@
 package com.example.dbeventservice.service;
 
-import com.example.dbeventservice.model.EventNotifyState;
-import com.example.dbeventservice.model.FCMToken;
-import com.example.dbeventservice.model.ResalePost;
-import com.example.dbeventservice.model.Ticket;
-import com.example.dbeventservice.model.TicketTier;
-import com.example.dbeventservice.model.User;
+import com.example.dbeventservice.model.*;
 import com.example.dbeventservice.repositories.*;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
@@ -35,6 +30,8 @@ public class NotificationService {
     private final ResalePostRepository resaleRepo;
     private final FollowRepository followRepo;
     private final EventNotifyStateRepository notifyStateRepo;
+
+    private final ResaleOrderRepository resaleOrderRepo;
 
     // ---------- Firebase boot ----------
     private void initFirebaseIfNeeded() throws Exception {
@@ -108,6 +105,33 @@ public class NotificationService {
         return cap;
     }
 
+    /** Seller confirmed a manual order → notify the buyer it’s done */
+    public void notifyManualPaymentConfirmed(Long orderId) {
+        ResaleOrder order = resaleOrderRepo.findById(orderId).orElseThrow();
+        if (order.getResalePost() == null) return;
+
+        var post   = order.getResalePost();
+        var buyer  = order.getBuyer();
+        var ticket = post.getTicket();
+        var event  = (ticket != null) ? ticket.getEvent() : null;
+
+        if (buyer == null) return;
+
+        String eventTitle = (event != null && event.getTitle() != null) ? event.getTitle() : "your event";
+
+        Map<String,String> data = socialData("MANUAL_RESALE_CONFIRMED", event != null ? event.getId() : null);
+        data.put("orderId", String.valueOf(order.getId()));
+        data.put("resaleId", String.valueOf(post.getId()));
+
+        sendPushToUsernameWithData(
+                buyer.getUsername(),
+                "✅ Resale confirmed",
+                "Your resale purchase for \"" + eventTitle + "\" is confirmed.",
+                data
+        );
+    }
+
+
     // ---------- High-level business notifications ----------
 
     /** Owner gets a push when someone purchases a ticket */
@@ -121,6 +145,34 @@ public class NotificationService {
         String body  = displayNameOf(buyer) + " bought a ticket for \"" + event.getTitle() + "\"";
         sendPushToUsernameWithData(owner.getUsername(), title, body, socialData("TICKET_PURCHASED", eventId));
     }
+
+    /** Buyer created a manual-payment resale order → notify the seller to review/confirm */
+    public void notifyManualPaymentPending(Long orderId) {
+        ResaleOrder order = resaleOrderRepo.findById(orderId).orElseThrow();
+        if (order.getResalePost() == null) return;
+
+        var post   = order.getResalePost();
+        var seller = post.getSeller();
+        var ticket = post.getTicket();
+        var event  = (ticket != null) ? ticket.getEvent() : null;
+        var buyer  = order.getBuyer();
+
+        if (seller == null) return;
+
+        String eventTitle = (event != null && event.getTitle() != null) ? event.getTitle() : "your event";
+        String methodName = (order.getMethod() != null) ? order.getMethod().name() : "MANUAL";
+
+        String title = "⏳ Manual payment pending";
+        String body  = (buyer != null ? (displayNameOf(buyer) + " ") : "")
+                + "requested review (" + methodName + ") for \"" + eventTitle + "\"";
+
+        Map<String,String> data = socialData("MANUAL_RESALE_PENDING", event != null ? event.getId() : null);
+        data.put("orderId", String.valueOf(order.getId()));
+        data.put("resaleId", String.valueOf(post.getId()));
+
+        sendPushToUsernameWithData(seller.getUsername(), title, body, data);
+    }
+
 
     /** Check 50/80/100% milestones and notify owner (send each once) */
     @Transactional

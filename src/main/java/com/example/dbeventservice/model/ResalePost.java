@@ -30,6 +30,23 @@ public class ResalePost {
 
     private LocalDateTime createdAt = LocalDateTime.now();
 
+
+    // 🔽 NEW: analytics + state
+    @Builder.Default
+    private boolean paused = false;
+
+    @Builder.Default
+    private long viewsCount = 0;
+
+    @Builder.Default
+    private long chatOpenCount = 0;
+
+    private LocalDateTime soldAt;
+
+    // convenience helpers
+    public void incViews() { this.viewsCount++; }
+    public void incChatOpens() { this.chatOpenCount++; }
+
     @PrePersist
     public void prePersist() {
         if (createdAt == null) {

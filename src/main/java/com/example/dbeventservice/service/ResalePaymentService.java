@@ -1,8 +1,10 @@
 package com.example.dbeventservice.service;
 
 import com.example.dbeventservice.dto.PaymentIntentResponse;
+import com.example.dbeventservice.dto.PaymentOptionsDTO;
 import com.example.dbeventservice.model.*;
-import com.example.dbeventservice.model.Enum.OfferStatus;
+import com.example.dbeventservice.model.Enum.PaymentMethod;
+import com.example.dbeventservice.model.Enum.ResaleOrderStatus;
 import com.example.dbeventservice.model.Enum.TicketStatus;
 import com.example.dbeventservice.repositories.*;
 import com.stripe.Stripe;
@@ -16,87 +18,75 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional; // 👈 NEW
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.time.LocalDateTime;
+import java.util.*;
 
 @Service
 public class ResalePaymentService {
 
     @Value("${stripe.secret.key}")
-    private String stripeSecretKey;
+    private String stripeApiKey;
 
-    private final ResalePostRepository resalePostRepository;
-    private final TicketRepository ticketRepository;
-    private final UserRepository userRepository;
-    @Autowired private ChatRoomRepository chatRoomRepository;
-    @Autowired private CounterOfferRepository counterOfferRepository;
+    @Autowired private ResalePostRepository resalePostRepository;
+    @Autowired private TicketRepository ticketRepository;
+    @Autowired private UserRepository userRepository;
+    @Autowired private ResaleOrderRepository resaleOrderRepository;
     @Autowired private NotificationService notificationService;
 
-    public ResalePaymentService(
-            ResalePostRepository resalePostRepository,
-            TicketRepository ticketRepository,
-            UserRepository userRepository,
-            CounterOfferRepository counterOfferRepository
-    ) {
-        this.resalePostRepository = resalePostRepository;
-        this.ticketRepository = ticketRepository;
-        this.userRepository = userRepository;
-        this.counterOfferRepository = counterOfferRepository;
-    }
+    @Autowired private ResalePostRepository postRepo;
 
     @PostConstruct
-    public void init() { Stripe.apiKey = stripeSecretKey; }
+    public void init() { Stripe.apiKey = stripeApiKey; }
 
+    // ---------- CARD (Stripe) ----------
     public PaymentIntentResponse createPaymentIntentForResale(Long resalePostId, Long buyerId) throws StripeException {
         ResalePost post = resalePostRepository.findById(resalePostId)
-                .orElseThrow(() -> new IllegalArgumentException("Post not found"));
-
-        if (post.isSold()) throw new IllegalArgumentException("Ticket already sold");
+                .orElseThrow(() -> new IllegalArgumentException("Resale post not found"));
+        if (post.isSold()) throw new IllegalArgumentException("This post is already sold.");
         if (Objects.equals(post.getSeller().getId(), buyerId))
             throw new IllegalArgumentException("You cannot buy your own resale post");
 
-        Optional<ChatRoom> chatRoomOpt = chatRoomRepository.findByResalePostIdAndBuyerId(resalePostId, buyerId);
-        Optional<CounterOffer> accepted = chatRoomOpt.flatMap(room ->
-                counterOfferRepository.findTopByChatRoomAndSenderIdAndStatusOrderByCreatedAtDesc(
-                        room, buyerId, OfferStatus.ACCEPTED
-                )
+        // Create/retrieve Stripe customer for buyer (id = buyerId)
+        Customer customer = Customer.retrieve(String.valueOf(buyerId));
+        if (customer == null || customer.getId() == null) {
+            Map<String, Object> params = new HashMap<>();
+            params.put("id", String.valueOf(buyerId));
+            customer = Customer.create(params);
+        }
+
+        RequestOptions keyOpts = RequestOptions.builder().setStripeVersionOverride("2022-11-15").build();
+        Map<String, Object> ekParams = new HashMap<>();
+        ekParams.put("customer", customer.getId());
+        EphemeralKey ephemeralKey = EphemeralKey.create(ekParams, keyOpts);
+
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("type", "resale");
+        metadata.put("resalePostId", String.valueOf(resalePostId));
+        metadata.put("buyerId", String.valueOf(buyerId));
+
+        PaymentIntentCreateParams createParams =
+                PaymentIntentCreateParams.builder()
+                        .setAmount(Math.round(post.getPrice() * 100)) // cents
+                        .setCurrency("usd")
+                        .setCustomer(customer.getId())
+                        .putAllMetadata(metadata)
+                        .build();
+
+        PaymentIntent intent = PaymentIntent.create(createParams);
+
+        return new PaymentIntentResponse(
+                intent.getClientSecret(),
+                ephemeralKey.getSecret(),
+                customer.getId()
         );
-
-        double finalPrice = accepted.map(CounterOffer::getAmount).orElse(post.getPrice());
-        long amount = (long) (finalPrice * 100);
-
-        Customer customer = Customer.create(new HashMap<>());
-        EphemeralKey key = EphemeralKey.create(
-                Map.of("customer", customer.getId()),
-                RequestOptions.builder().setStripeVersionOverride("2023-10-16").build()
-        );
-
-        PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
-                .setAmount(amount)
-                .setCurrency("usd")
-                .setCustomer(customer.getId())
-                .putMetadata("resalePostId", resalePostId.toString())
-                .putMetadata("buyerId", buyerId.toString())
-                .putMetadata("ticketTitle", post.getTitle())
-                .setAutomaticPaymentMethods(
-                        PaymentIntentCreateParams.AutomaticPaymentMethods.builder().setEnabled(true).build()
-                )
-                .build();
-
-        PaymentIntent intent = PaymentIntent.create(params);
-        return new PaymentIntentResponse(intent.getClientSecret(), customer.getId(), key.getSecret());
     }
 
-    @Transactional // 👈 NEW
     public Ticket processPaymentAndTransferTicket(Long resalePostId, Long buyerId) {
         ResalePost post = resalePostRepository.findById(resalePostId)
-                .orElseThrow(() -> new IllegalArgumentException("Post not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Resale post not found"));
 
-        if (post.isSold()) throw new IllegalArgumentException("Ticket already sold");
+        if (post.isSold()) throw new IllegalArgumentException("This post is already sold.");
         if (Objects.equals(post.getSeller().getId(), buyerId))
             throw new IllegalArgumentException("You cannot buy your own resale post");
 
@@ -104,24 +94,21 @@ public class ResalePaymentService {
         User buyer = userRepository.findById(buyerId)
                 .orElseThrow(() -> new IllegalArgumentException("Buyer not found"));
 
-        // ✅ Transfer ownership
+        // Transfer ownership
         ticket.setOwner(buyer);
         ticket.setStatus(TicketStatus.PAID);
         ticket.setQrCodeUrl("/api/tickets/qr/" + ticket.getId());
         ticketRepository.save(ticket);
 
-        // ✅ Mark post as sold
+        // Mark post as sold
         post.setSold(true);
         resalePostRepository.save(post);
 
-        // ♻️ Notify seller and owner (with buyer when inferable) + data {type:"SOCIAL", ...}
+        // Notify
         notificationService.notifyResaleSold(resalePostId);
-
-        // 👥 “Friend is going” — buyer just got a (paid) ticket for this event
         if (ticket.getEvent() != null) {
             notificationService.notifyFriendsGoing(buyerId, ticket.getEvent().getId());
         }
-
         return ticket;
     }
 
@@ -139,5 +126,99 @@ public class ResalePaymentService {
         } catch (Exception e) {
             System.out.println("❌ Resale confirm webhook error: " + e.getMessage());
         }
+    }
+
+    // ---------- OPTIONS ----------
+    public PaymentOptionsDTO getPaymentOptions(Long resalePostId) {
+        ResalePost post = resalePostRepository.findById(resalePostId)
+                .orElseThrow(() -> new IllegalArgumentException("Resale post not found"));
+
+        Event event = post.getTicket().getEvent();
+        String country = event != null ? event.getCountry() : null;
+
+        List<String> allowed = new ArrayList<>();
+        allowed.add("card"); // Stripe
+
+        // Venezuela-only methods
+        if (country != null && (country.equalsIgnoreCase("Venezuela") || country.equalsIgnoreCase("VE"))) {
+            if (event.getZelleEmail() != null && !event.getZelleEmail().isBlank()) allowed.add("zelle");
+            if (event.getPagoMovilPhone() != null && !event.getPagoMovilPhone().isBlank()) allowed.add("pagoMovil");
+            if (event.getCashNote() != null && !event.getCashNote().isBlank()) allowed.add("cash");
+        }
+
+        // You can decide currency presentation here; default USD
+        String currency = (country != null && (country.equalsIgnoreCase("Venezuela") || country.equalsIgnoreCase("VE")))
+                ? "USD" : "USD";
+
+        return new PaymentOptionsDTO(
+                country,
+                currency,
+                allowed,
+                event != null ? event.getZelleEmail() : null,
+                event != null ? event.getPagoMovilPhone() : null,
+                event != null ? event.getPagoMovilCi() : null,
+                event != null ? event.getPagoMovilBank() : null,
+                event != null ? event.getCashNote() : null
+        );
+    }
+
+    // ---------- MANUAL ORDERS ----------
+    public ResaleOrder createManualOrder(Long resalePostId, Long buyerId, PaymentMethod method, String reference) {
+        ResalePost post = resalePostRepository.findById(resalePostId)
+                .orElseThrow(() -> new IllegalArgumentException("Resale post not found"));
+        if (post.isSold()) throw new IllegalArgumentException("This post is already sold.");
+        if (Objects.equals(post.getSeller().getId(), buyerId))
+            throw new IllegalArgumentException("You cannot buy your own resale post");
+
+        Event event = post.getTicket().getEvent();
+        String country = event != null ? event.getCountry() : null;
+        boolean vene = country != null && (country.equalsIgnoreCase("Venezuela") || country.equalsIgnoreCase("VE"));
+
+        // Only allow manual in Venezuela
+        if (!vene) throw new IllegalArgumentException("Manual payment is not available for this post.");
+
+        // Build order
+        ResaleOrder order = ResaleOrder.builder()
+                .resalePost(post)
+                .buyer(userRepository.findById(buyerId).orElseThrow(() -> new IllegalArgumentException("Buyer not found")))
+                .method(method)
+                .status(ResaleOrderStatus.PENDING)
+                .amount(post.getPrice())
+                .currency("USD")
+                .reference(reference)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        order = resaleOrderRepository.save(order);
+
+        // ping seller
+        notificationService.notifyManualPaymentPending(order.getId());
+
+        return order;
+    }
+
+
+
+    public Ticket confirmManualOrder(Long orderId, Long sellerId) {
+        ResaleOrder order = resaleOrderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Manual order not found"));
+
+        ResalePost post = order.getResalePost();
+        if (!Objects.equals(post.getSeller().getId(), sellerId)) {
+            throw new IllegalArgumentException("Only the seller can confirm this order.");
+        }
+        if (post.isSold()) throw new IllegalArgumentException("This post is already sold.");
+
+        order.setStatus(ResaleOrderStatus.PAID);
+        var posted = order.getResalePost();
+        posted.setSold(true);
+        posted.setSoldAt(LocalDateTime.now());   // 🔽 NEW
+        postRepo.save(posted);
+        order.setConfirmedAt(LocalDateTime.now());
+        resaleOrderRepository.save(order);
+
+        notificationService.notifyManualPaymentConfirmed(orderId);
+
+        return processPaymentAndTransferTicket(post.getId(), order.getBuyer().getId());
     }
 }
