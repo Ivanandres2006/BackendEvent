@@ -1,10 +1,12 @@
 package com.example.dbeventservice.dto;
 
+import com.example.dbeventservice.model.Enum.TicketStatus;
 import com.example.dbeventservice.model.Ticket;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDateTime; // ⬅️ needed for the future check
+import java.time.format.DateTimeFormatter;
 
 @Getter
 @Setter
@@ -34,19 +36,22 @@ public class TicketDTO {
     private String eventCountry;    // country (from Event)
     private boolean resellEligible; // server-side computed
 
-    // ✅ Constructor used when just mapping a Ticket (default fallback)
-    public TicketDTO(Ticket ticket) {
-        this(ticket, false); // default: not resold
-    }
+    private static final DateTimeFormatter IOS_FMT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+
+    public TicketDTO(Ticket ticket) { this(ticket, false); }
 
     public TicketDTO(Ticket ticket, boolean resold) {
         this.id = ticket.getId();
         this.quantity = ticket.getQuantity();
-        this.status = ticket.getStatus().name();
+
+        // Status string is optional in client; keep it but don’t rely on it alone
+        this.status = ticket.getStatus() != null ? ticket.getStatus().name() : null;
+
         this.qrCodeUrl = ticket.getQrCodeUrl();
-        this.tierName = ticket.getTicketTier().getName();
-        this.eventTitle = ticket.getEvent().getTitle();
-        this.eventId = ticket.getEvent().getId();
+        this.tierName = ticket.getTicketTier() != null ? ticket.getTicketTier().getName() : null;
+        this.eventTitle = ticket.getEvent() != null ? ticket.getEvent().getTitle() : null;
+        this.eventId = ticket.getEvent() != null ? ticket.getEvent().getId() : null;
         this.resold = resold;
 
         if (ticket.getOwner() != null) {
@@ -56,26 +61,31 @@ public class TicketDTO {
             this.buyerEmail     = ticket.getOwner().getEmail();
         }
 
-        this.paid = ticket.isPaid(); // (make sure Ticket has this field)
+        this.paid = ticket.isPaid();
         this.paymentMethod = ticket.getPaymentMethod();
 
         this.used = ticket.isUsed();
         this.usedAt = ticket.getUsedAt() != null ? ticket.getUsedAt().toString() : null;
         this.scannedBy = ticket.getScannedBy();
 
-        // --- NEW: pull info from the Event ---
+        // --- Event fields ---
         var event = ticket.getEvent();
         var dt = (event != null) ? event.getDateTime() : null;
-
-        this.eventDateTime = (dt != null) ? dt.toString() : null;
+        this.eventDateTime = (dt != null) ? IOS_FMT.format(dt) : null;   // ⬅️ consistent, no fractions
         this.eventCountry  = (event != null) ? event.getCountry() : null;
 
+        // STRICT future
         boolean future = (dt != null) && dt.isAfter(LocalDateTime.now());
-        this.resellEligible = future && !ticket.isUsed() && !resold;
+
+        // Consider PAID/VALID OR boolean paid to avoid enum-null edge cases
+        var ts = ticket.getStatus();
+        boolean paidOrValid = ticket.isPaid()
+                || ts == TicketStatus.PAID;
+
+        this.resellEligible = future && !ticket.isUsed() && !resold && paidOrValid;
     }
 
-    public static TicketDTO from(Ticket t) {
-        // by definition, “eligible for resale” means not currently listed
-        return new TicketDTO(t, /*resold*/ false);
+    public static TicketDTO from(Ticket t, boolean isResold) {   // ⬅️ overload so you can pass resold flag
+        return new TicketDTO(t, isResold);
     }
 }

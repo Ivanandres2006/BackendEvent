@@ -69,7 +69,7 @@ public class ResalePostService {
             // ✅ TIME CHECK BEFORE SAVE, with grace
             var event = ticket.getEvent();
             var dt = (event != null) ? event.getDateTime() : null;
-            if (dt != null && !dt.isAfter(nowMinusGrace())) {
+            if (dt != null && !dt.isAfter(LocalDateTime.now())) {     // ⬅️ strict
                 throw new IllegalArgumentException("Event has already passed; cannot list for resale.");
             }
 
@@ -95,10 +95,12 @@ public class ResalePostService {
 
         public List<ResalePost> getAllAvailablePosts() {
             try {
-                return resalePostRepository.findAvailableWithFutureEvent(nowMinusGrace());
+                return resalePostRepository.findAvailableWithFutureEvent(LocalDateTime.now()); // ⬅️ strict
             } catch (Exception ignored) {
                 return resalePostRepository.findBySoldFalseAndPausedFalseOrderByCreatedAtDesc()
-                        .stream().filter(this::eventIsInFutureWithGrace).toList();
+                        .stream()
+                        .filter(this::eventIsInFuture)   // ⬅️ strict helper below
+                        .toList();
             }
         }
 
@@ -108,16 +110,11 @@ public class ResalePostService {
             return when != null && when.isAfter(nowMinusGrace());
         }
 
-    private boolean eventIsInFuture(ResalePost p) {
-        var t = p.getTicket();
-        if (t == null) return false;
-
-        var e = t.getEvent();
-        if (e == null) return false;
-
-        LocalDateTime when = e.getDateTime();   // <-- use Event.dateTime
-        return when != null && when.isAfter(LocalDateTime.now());
-    }
+        private boolean eventIsInFuture(ResalePost p) {
+            var e = (p.getTicket() != null) ? p.getTicket().getEvent() : null;
+            var when = (e != null) ? e.getDateTime() : null;
+            return when != null && when.isAfter(LocalDateTime.now());
+        }
 
     public List<ResalePost> getUserPosts(Long userId) {
         User user = userRepository.findById(userId).orElseThrow();

@@ -74,17 +74,23 @@ public class TicketController {
 
     @GetMapping("/eligible")
     public ResponseEntity<?> eligible(@AuthenticationPrincipal UserDetailsImpl user) {
-        var cutoff = LocalDateTime.now().minusHours(futureGraceHours);
-        var list = ticketRepository.findEligibleForResale(user.getId(), cutoff)
-                .stream().map(TicketDTO::from).toList();
+        var now = LocalDateTime.now(); // ⬅️ strict, no grace
+        var tickets = ticketRepository.findEligibleForResale(user.getId(), now);
+
+        var list = tickets.stream()
+                .map(t -> TicketDTO.from(t, /*resold*/ false)) // query already excludes active listings
+                .toList();
+
         return ResponseEntity.ok(list);
     }
 
+    // mine-all / my — keep these, but pass the real resold flag:
     @GetMapping("/mine-all")
     public ResponseEntity<?> mineAll(@AuthenticationPrincipal UserDetailsImpl user) {
         var owner = userRepository.findById(user.getId()).orElseThrow();
         var list  = ticketRepository.findByOwner(owner).stream()
-                .map(TicketDTO::new).toList();
+                .map(t -> TicketDTO.from(t, resalePostRepository.existsByTicketAndSoldFalse(t)))
+                .toList();
         return ResponseEntity.ok(list);
     }
 
@@ -167,21 +173,13 @@ public class TicketController {
 
     @GetMapping("/my")
     public ResponseEntity<?> myTickets(@RequestParam String email) {
-        Optional<User> userOpt = userRepository.findByEmail(email);
-        if (userOpt.isEmpty()) {
-            return ResponseEntity.status(404).body(Map.of("error", "User not found"));
-        }
+        var userOpt = userRepository.findByEmail(email);
+        if (userOpt.isEmpty()) return ResponseEntity.status(404).body(Map.of("error", "User not found"));
 
-        List<Ticket> tickets = ticketRepository.findTicketsWithDetailsByOwnerAndStatus(userOpt.get(), TicketStatus.PAID);
-
-        List<TicketDTO> result = tickets.stream()
-                .map(ticket -> {
-                    boolean isResold = resalePostRepository.existsByTicketAndSoldFalse(ticket);
-                    return new TicketDTO(ticket, isResold); // ✅ use custom constructor
-                })
+        var tickets = ticketRepository.findTicketsWithDetailsByOwnerAndStatus(userOpt.get(), TicketStatus.PAID);
+        var result = tickets.stream()
+                .map(t -> TicketDTO.from(t, resalePostRepository.existsByTicketAndSoldFalse(t)))
                 .toList();
-
-        result.forEach(t -> System.out.println("🎫 DTO: " + t.getEventTitle() + " | " + t.getTierName()));
         return ResponseEntity.ok(result);
     }
 

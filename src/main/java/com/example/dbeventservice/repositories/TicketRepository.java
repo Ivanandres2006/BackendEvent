@@ -78,23 +78,20 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     long countPaidTicketsByEventId(@Param("eventId") Long eventId);
 
     @Query("""
-select t from Ticket t
-  join fetch t.event e
-  join fetch t.ticketTier
-where t.owner.id = :userId
-  and (
-       t.paid = true
-       or t.status = com.example.dbeventservice.model.Enum.TicketStatus.PAID
-       or t.ticketTier.price = 0
-  )
-  and t.used = false
-  and e.dateTime > :now
-  and not exists (
-    select 1 from ResalePost rp where rp.ticket = t and rp.sold = false
-  )
-order by e.dateTime asc
+   select t
+   from Ticket t
+     join t.event e
+   where t.owner.id = :ownerId
+     and t.used = false
+     and (t.paid = true)
+     and e.dateTime > :now
+     and not exists (
+       select 1 from ResalePost rp
+       where rp.ticket = t and rp.sold = false
+     )
+   order by e.dateTime asc
 """)
-    List<Ticket> findEligibleForResale(@Param("userId") Long userId,
+    List<Ticket> findEligibleForResale(@Param("ownerId") Long ownerId,
                                        @Param("now") LocalDateTime now);
 
 
