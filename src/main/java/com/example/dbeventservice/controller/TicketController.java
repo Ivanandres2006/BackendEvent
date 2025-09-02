@@ -77,6 +77,15 @@ public class TicketController {
         return ResponseEntity.ok(list);
     }
 
+    @GetMapping("/mine-all")
+    public ResponseEntity<?> mineAll(@AuthenticationPrincipal UserDetailsImpl user) {
+        var owner = userRepository.findById(user.getId()).orElseThrow();
+        var list  = ticketRepository.findByOwner(owner).stream()
+                .map(TicketDTO::new).toList();
+        return ResponseEntity.ok(list);
+    }
+
+
 
 
     @GetMapping("/my-event-ids")
