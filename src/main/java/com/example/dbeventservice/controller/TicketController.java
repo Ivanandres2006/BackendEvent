@@ -72,10 +72,11 @@ public class TicketController {
     @GetMapping("/eligible")
     public ResponseEntity<?> eligible(@AuthenticationPrincipal UserDetailsImpl user) {
         var list = ticketRepository.findEligibleForResale(user.getId(), LocalDateTime.now())
-                .stream().map(t -> new TicketDTO(t, false))
+                .stream().map(TicketDTO::from)
                 .toList();
         return ResponseEntity.ok(list);
     }
+
 
 
     @GetMapping("/my-event-ids")

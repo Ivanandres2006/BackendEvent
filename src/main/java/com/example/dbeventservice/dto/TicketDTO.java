@@ -73,4 +73,9 @@ public class TicketDTO {
         boolean future = (dt != null) && dt.isAfter(LocalDateTime.now());
         this.resellEligible = future && !ticket.isUsed() && !resold;
     }
+
+    public static TicketDTO from(Ticket t) {
+        // by definition, “eligible for resale” means not currently listed
+        return new TicketDTO(t, /*resold*/ false);
+    }
 }
