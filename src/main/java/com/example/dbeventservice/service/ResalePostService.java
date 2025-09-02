@@ -40,60 +40,73 @@ public class ResalePostService {
     @Autowired
     private NotificationService notificationService; // 👈 NEW
 
-    @Transactional // 👈 NEW
-    public ResalePost createResalePost(Long ticketId, double price, String title, String description, Long userId) {
-        Ticket ticket = ticketRepository.findById(ticketId)
-                .orElseThrow(() -> new IllegalArgumentException("Ticket not found"));
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        if (ticket.getOwner() == null || !ticket.getOwner().getId().equals(userId)) {
-            throw new IllegalArgumentException("You don't own this ticket.");
-        }
-        if (!ticket.isPaid())             throw new IllegalArgumentException("Only paid tickets can be listed.");
-        if (ticket.isUsed())              throw new IllegalArgumentException("Used tickets cannot be listed.");
-        if (resalePostRepository.existsByTicketAndSoldFalse(ticket)) {
-            throw new IllegalArgumentException("This ticket is already listed for resale.");
+
+        // configurable grace (default 6 hours)
+        @org.springframework.beans.factory.annotation.Value("${app.event.futureGraceHours:6}")
+        private long futureGraceHours;
+
+        private LocalDateTime nowMinusGrace() {
+            return LocalDateTime.now().minusHours(futureGraceHours);
         }
 
-        ResalePost post = ResalePost.builder()
-                .ticket(ticket)
-                .seller(user)
-                .price(price)
-                .title(title)
-                .createdAt(LocalDateTime.now())
-                .description(description)
-                .sold(false)
-                .build();
+        @Transactional
+        public ResalePost createResalePost(Long ticketId, double price, String title, String description, Long userId) {
+            Ticket ticket = ticketRepository.findById(ticketId)
+                    .orElseThrow(() -> new IllegalArgumentException("Ticket not found"));
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        ResalePost saved = resalePostRepository.save(post);
+            if (ticket.getOwner() == null || !ticket.getOwner().getId().equals(userId)) {
+                throw new IllegalArgumentException("You don't own this ticket.");
+            }
+            if (!ticket.isPaid()) throw new IllegalArgumentException("Only paid tickets can be listed.");
+            if (ticket.isUsed())  throw new IllegalArgumentException("Used tickets cannot be listed.");
+            if (resalePostRepository.existsByTicketAndSoldFalse(ticket)) {
+                throw new IllegalArgumentException("This ticket is already listed for resale.");
+            }
 
-        if (ticket.getEvent() != null && ticket.getEvent().getDateTime() != null) {
-            if (!ticket.getEvent().getDateTime().isAfter(LocalDateTime.now())) {
+            // ✅ TIME CHECK BEFORE SAVE, with grace
+            var event = ticket.getEvent();
+            var dt = (event != null) ? event.getDateTime() : null;
+            if (dt != null && !dt.isAfter(nowMinusGrace())) {
                 throw new IllegalArgumentException("Event has already passed; cannot list for resale.");
+            }
+
+            // proceed to create
+            ResalePost saved = resalePostRepository.save(
+                    ResalePost.builder()
+                            .ticket(ticket)
+                            .seller(user)
+                            .price(price)
+                            .title(title)
+                            .description(description)
+                            .createdAt(LocalDateTime.now())
+                            .sold(false)
+                            .build()
+            );
+
+            // optional notify
+            if (event != null) {
+                notificationService.notifyHotEventResaleAdded(event.getId(), saved.getId(), userId);
+            }
+            return saved;
+        }
+
+        public List<ResalePost> getAllAvailablePosts() {
+            try {
+                return resalePostRepository.findAvailableWithFutureEvent(nowMinusGrace());
+            } catch (Exception ignored) {
+                return resalePostRepository.findBySoldFalseAndPausedFalseOrderByCreatedAtDesc()
+                        .stream().filter(this::eventIsInFutureWithGrace).toList();
             }
         }
 
-        // 🔥 Notify audience if the event is hot (method itself checks “hot” again)
-        notificationService.notifyHotEventResaleAdded(
-                ticket.getEvent().getId(), saved.getId(), userId
-        ); // -> data { type:"SOCIAL", kind:"HOT_EVENT_RESALE_ADDED", eventId, resaleId }
-
-        return saved;
-    }
-
-
-
-    public List<ResalePost> getAllAvailablePosts() {
-        try {
-            return resalePostRepository.findAvailableWithFutureEvent(LocalDateTime.now());
-        } catch (Exception ignored) {
-            return resalePostRepository.findBySoldFalseAndPausedFalseOrderByCreatedAtDesc()
-                    .stream()
-                    .filter(this::eventIsInFuture)   // uses the helper above
-                    .toList();
+        private boolean eventIsInFutureWithGrace(ResalePost p) {
+            var e = (p.getTicket() != null) ? p.getTicket().getEvent() : null;
+            var when = (e != null) ? e.getDateTime() : null;
+            return when != null && when.isAfter(nowMinusGrace());
         }
-    }
 
     private boolean eventIsInFuture(ResalePost p) {
         var t = p.getTicket();

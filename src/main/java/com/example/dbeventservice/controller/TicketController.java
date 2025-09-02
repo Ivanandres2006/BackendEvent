@@ -45,6 +45,9 @@ public class TicketController {
     @Autowired
     private EventRepository eventRepository;
 
+    @org.springframework.beans.factory.annotation.Value("${app.event.futureGraceHours:6}")
+    private long futureGraceHours;
+
     @Autowired
     public TicketController(TicketService ticketService) {
         this.ticketService = ticketService;
@@ -71,9 +74,9 @@ public class TicketController {
 
     @GetMapping("/eligible")
     public ResponseEntity<?> eligible(@AuthenticationPrincipal UserDetailsImpl user) {
-        var list = ticketRepository.findEligibleForResale(user.getId(), LocalDateTime.now())
-                .stream().map(TicketDTO::from)
-                .toList();
+        var cutoff = LocalDateTime.now().minusHours(futureGraceHours);
+        var list = ticketRepository.findEligibleForResale(user.getId(), cutoff)
+                .stream().map(TicketDTO::from).toList();
         return ResponseEntity.ok(list);
     }
 
