@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface TicketRepository extends JpaRepository<Ticket, Long> {
@@ -76,5 +77,22 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
            """)
     long countPaidTicketsByEventId(@Param("eventId") Long eventId);
 
-
+    @Query("""
+        select t
+        from Ticket t
+          join t.owner u
+          join t.event e
+        where u.id = :userId
+          and t.paid = true
+          and t.used = false
+          and e.dateTime > :now
+          and not exists (
+            select 1
+            from ResalePost rp
+            where rp.ticket = t and rp.sold = false
+          )
+        order by e.dateTime asc
+        """)
+    List<Ticket> findEligibleForResale(@Param("userId") Long userId,
+                                       @Param("now") LocalDateTime now);
 }
