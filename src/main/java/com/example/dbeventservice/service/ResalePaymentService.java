@@ -63,7 +63,7 @@ public class ResalePaymentService {
     }
 
     // ---------- CARD (Stripe) ----------
-    public PaymentIntentResponse createPaymentIntentForResale(Long resalePostId, Long buyerId) throws StripeException {
+    public Map<String, Object> createPaymentIntentForResale(Long resalePostId, Long buyerId) throws StripeException {
         ResalePost post = resalePostRepository.findById(resalePostId)
                 .orElseThrow(() -> new IllegalArgumentException("Resale post not found"));
         if (post.isSold()) throw new IllegalArgumentException("This post is already sold.");
@@ -73,40 +73,22 @@ public class ResalePaymentService {
         User buyer = userRepository.findById(buyerId)
                 .orElseThrow(() -> new IllegalArgumentException("Buyer not found"));
 
-        // ✅ Correct: real Stripe customer
-        Customer customer = getOrCreateStripeCustomer(buyer);
+        long amount = Math.round(post.getPrice() * 100.0);
 
-        RequestOptions keyOpts = RequestOptions.builder()
-                .setStripeVersionOverride("2022-11-15")
+        PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
+                .setAmount(amount)
+                .setCurrency("usd")
+                .setReceiptEmail(buyer.getEmail()) // optional but nice for receipts
+                .putMetadata("type", "resale")
+                .putMetadata("resalePostId", String.valueOf(resalePostId))
+                .putMetadata("buyerId", String.valueOf(buyerId))
+                .setAutomaticPaymentMethods(
+                        PaymentIntentCreateParams.AutomaticPaymentMethods.builder().setEnabled(true).build()
+                )
                 .build();
-        Map<String, Object> ekParams = new HashMap<>();
-        ekParams.put("customer", customer.getId());
-        EphemeralKey ephemeralKey = EphemeralKey.create(ekParams, keyOpts);
 
-        Map<String, String> metadata = new HashMap<>();
-        metadata.put("type", "resale");
-        metadata.put("resalePostId", String.valueOf(resalePostId));
-        metadata.put("buyerId", String.valueOf(buyerId));
-
-        PaymentIntentCreateParams createParams =
-                PaymentIntentCreateParams.builder()
-                        .setAmount(Math.round(post.getPrice() * 100)) // cents
-                        .setCurrency("usd")
-                        .setCustomer(customer.getId())
-                        .setAutomaticPaymentMethods(
-                                PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
-                                        .setEnabled(true).build()
-                        )
-                        .putAllMetadata(metadata)
-                        .build();
-
-        PaymentIntent intent = PaymentIntent.create(createParams);
-
-        return new PaymentIntentResponse(
-                intent.getClientSecret(),
-                ephemeralKey.getSecret(),
-                customer.getId()
-        );
+        PaymentIntent intent = PaymentIntent.create(params);
+        return Map.of("clientSecret", intent.getClientSecret());
     }
 
     // Guard: event must still be in the future

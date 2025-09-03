@@ -34,19 +34,20 @@ public class ResalePaymentController {
     @Autowired private ResaleOrderRepository resaleOrderRepository;
 
     // Card intent (existing)
+    // ResalePaymentController.java
     @PostMapping("/pay/{resalePostId}")
     public ResponseEntity<?> createIntent(
             @AuthenticationPrincipal UserDetailsImpl userDetails,
             @PathVariable Long resalePostId
     ) {
         try {
-            PaymentIntentResponse resp =
-                    resalePaymentService.createPaymentIntentForResale(resalePostId, userDetails.getId());
-            return ResponseEntity.ok(resp);
+            var resp = resalePaymentService.createPaymentIntentForResale(resalePostId, userDetails.getId());
+            return ResponseEntity.ok(resp); // => { "clientSecret": "pi_..._secret_..." }
         } catch (StripeException | IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
+
 
     // --- SELLER: My Listings summary (with pending manual count)
     @GetMapping("/my-listings")
