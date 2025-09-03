@@ -21,6 +21,13 @@ public class ResalePostDTO {
     private boolean sold; // ✅ Add this
     private boolean paused;  // ✅ let the app hide paused posts immediately if needed
 
+    // 👇 NEW
+    public String sellerZelleEmail;
+    public String sellerPagoMovilPhone;
+    public String sellerPagoMovilCi;
+    public String sellerPagoMovilBank;
+    public String sellerCashNote;
+
 
     public ResalePostDTO(ResalePost post) {
         this.id = post.getId();
@@ -35,6 +42,12 @@ public class ResalePostDTO {
         this.eventId = post.getTicket().getEvent().getId();
         this.sold = post.isSold();
         this.paused = post.isPaused();
+
+        this.sellerZelleEmail     = post.getSellerZelleEmail();    // ← from post, not account email
+        this.sellerPagoMovilPhone = post.getSellerPagoMovilPhone();
+        this.sellerPagoMovilCi    = post.getSellerPagoMovilCi();
+        this.sellerPagoMovilBank  = post.getSellerPagoMovilBank();
+        this.sellerCashNote       = post.getSellerCashNote();
 
     }
 }

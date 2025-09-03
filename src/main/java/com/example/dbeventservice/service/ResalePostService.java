@@ -25,6 +25,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static com.example.dbeventservice.model.Enum.PaymentMethod.zelle;
+
 @Service
 public class ResalePostService {
 
@@ -51,7 +53,9 @@ public class ResalePostService {
         }
 
         @Transactional
-        public ResalePost createResalePost(Long ticketId, double price, String title, String description, Long userId) {
+        public ResalePost createResalePost(
+                Long ticketId, double price, String title, String description, Long userId,
+                String zelle, String pmPhone, String pmCi, String pmBank, String cashNote) {
             Ticket ticket = ticketRepository.findById(ticketId)
                     .orElseThrow(() -> new IllegalArgumentException("Ticket not found"));
             User user = userRepository.findById(userId)
@@ -81,6 +85,11 @@ public class ResalePostService {
                             .price(price)
                             .title(title)
                             .description(description)
+                            .sellerZelleEmail(zelle)
+                            .sellerPagoMovilPhone(pmPhone)
+                            .sellerPagoMovilCi(pmCi)
+                            .sellerPagoMovilBank(pmBank)
+                            .sellerCashNote(cashNote)
                             .createdAt(LocalDateTime.now())
                             .sold(false)
                             .build()

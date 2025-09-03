@@ -43,6 +43,14 @@ public class ResalePost {
 
     private LocalDateTime soldAt;
 
+    private String sellerZelleEmail;
+
+    private String sellerPagoMovilPhone;
+    private String sellerPagoMovilCi;
+    private String sellerPagoMovilBank;
+
+    private String sellerCashNote;
+
     // convenience helpers
     public void incViews() { this.viewsCount++; }
     public void incChatOpens() { this.chatOpenCount++; }

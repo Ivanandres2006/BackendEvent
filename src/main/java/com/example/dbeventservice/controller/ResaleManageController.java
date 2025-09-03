@@ -26,7 +26,43 @@ public class ResaleManageController {
 
     // ---------- PRICE ----------
     @Getter @Setter
-    public static class PriceReq { private Double price; }
+    public static class PriceReq {
+        private Double price;
+    }
+
+    // com/example/dbeventservice/controller/ResaleManageController.java
+    @Getter @Setter
+    public static class PayoutReq {
+        public String sellerZelleEmail;
+        public String sellerPagoMovilPhone;
+        public String sellerPagoMovilCi;
+        public String sellerPagoMovilBank;
+        public String sellerCashNote;
+    }
+
+    @PatchMapping("/{postId}/payout")
+    public ResponseEntity<?> updatePayout(@AuthenticationPrincipal UserDetailsImpl user,
+                                          @PathVariable Long postId,
+                                          @RequestBody PayoutReq req) {
+        var post = postRepo.findById(postId)
+                .orElseThrow(() -> new IllegalArgumentException("Post not found"));
+        if (!post.getSeller().getId().equals(user.getId()))
+            return ResponseEntity.badRequest().body(err("Not your post"));
+        if (post.isSold())
+            return ResponseEntity.badRequest().body(err("Already sold"));
+
+        // allow clearing with empty string
+        post.setSellerZelleEmail(blankToNull(req.getSellerZelleEmail()));
+        post.setSellerPagoMovilPhone(blankToNull(req.getSellerPagoMovilPhone()));
+        post.setSellerPagoMovilCi(blankToNull(req.getSellerPagoMovilCi()));
+        post.setSellerPagoMovilBank(blankToNull(req.getSellerPagoMovilBank()));
+        post.setSellerCashNote(blankToNull(req.getSellerCashNote()));
+        postRepo.save(post);
+        return ResponseEntity.ok(ok("payoutUpdated"));
+    }
+
+    private static String blankToNull(String s){ return (s!=null && s.isBlank()) ? null : s; }
+
 
     @PatchMapping("/{postId}/price")
     public ResponseEntity<?> updatePrice(@AuthenticationPrincipal UserDetailsImpl user,

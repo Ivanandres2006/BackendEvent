@@ -134,53 +134,89 @@ public class ResalePaymentService {
                 .orElseThrow(() -> new IllegalArgumentException("Resale post not found"));
 
         Event event = post.getTicket().getEvent();
-        String country = event != null ? event.getCountry() : null;
+        String country = (event != null) ? event.getCountry() : null;
 
+        // What the buyer can choose
         List<String> allowed = new ArrayList<>();
-        allowed.add("card"); // Stripe
+        allowed.add("card"); // Stripe is always allowed
 
-        // Venezuela-only methods
-        if (country != null && (country.equalsIgnoreCase("Venezuela") || country.equalsIgnoreCase("VE"))) {
-            if (event.getZelleEmail() != null && !event.getZelleEmail().isBlank()) allowed.add("zelle");
-            if (event.getPagoMovilPhone() != null && !event.getPagoMovilPhone().isBlank()) allowed.add("pagoMovil");
-            if (event.getCashNote() != null && !event.getCashNote().isBlank()) allowed.add("cash");
+        // Manual methods only in VE (keep your existing rule)
+        boolean vene = country != null &&
+                (country.equalsIgnoreCase("Venezuela") || country.equalsIgnoreCase("VE"));
+        if (vene) {
+            if (!isBlank(post.getSellerZelleEmail())) {
+                allowed.add("zelle");
+            }
+            if (!isBlank(post.getSellerPagoMovilPhone())
+                    && !isBlank(post.getSellerPagoMovilCi())
+                    && !isBlank(post.getSellerPagoMovilBank())) {
+                allowed.add("pagoMovil");
+            }
+            if (!isBlank(post.getSellerCashNote())) {
+                allowed.add("cash");
+            }
         }
 
-        // You can decide currency presentation here; default USD
-        String currency = (country != null && (country.equalsIgnoreCase("Venezuela") || country.equalsIgnoreCase("VE")))
-                ? "USD" : "USD";
-
+        // Return *seller* details (not event details)
         return new PaymentOptionsDTO(
                 country,
-                currency,
+                "USD",
                 allowed,
-                event != null ? event.getZelleEmail() : null,
-                event != null ? event.getPagoMovilPhone() : null,
-                event != null ? event.getPagoMovilCi() : null,
-                event != null ? event.getPagoMovilBank() : null,
-                event != null ? event.getCashNote() : null
+                post.getSellerZelleEmail(),
+                post.getSellerPagoMovilPhone(),
+                post.getSellerPagoMovilCi(),
+                post.getSellerPagoMovilBank(),
+                post.getSellerCashNote()
         );
     }
 
+
+    private String nb(String s) { return (s == null || s.isBlank()) ? null : s; }
+
+
     // ---------- MANUAL ORDERS ----------
-    public ResaleOrder createManualOrder(Long resalePostId, Long buyerId, PaymentMethod method, String reference) {
+    public ResaleOrder createManualOrder(Long resalePostId, Long buyerId,
+                                         PaymentMethod method, String reference) {
         ResalePost post = resalePostRepository.findById(resalePostId)
                 .orElseThrow(() -> new IllegalArgumentException("Resale post not found"));
+
         if (post.isSold()) throw new IllegalArgumentException("This post is already sold.");
         if (Objects.equals(post.getSeller().getId(), buyerId))
             throw new IllegalArgumentException("You cannot buy your own resale post");
 
         Event event = post.getTicket().getEvent();
-        String country = event != null ? event.getCountry() : null;
-        boolean vene = country != null && (country.equalsIgnoreCase("Venezuela") || country.equalsIgnoreCase("VE"));
+        String country = (event != null) ? event.getCountry() : null;
+        boolean vene = country != null &&
+                (country.equalsIgnoreCase("Venezuela") || country.equalsIgnoreCase("VE"));
 
-        // Only allow manual in Venezuela
+        // Keep your Venezuela-only rule for manual flows
         if (!vene) throw new IllegalArgumentException("Manual payment is not available for this post.");
+
+        // Validate the chosen manual method against *seller* fields
+        switch (method) {
+            case zelle -> {
+                if (isBlank(post.getSellerZelleEmail()))
+                    throw new IllegalArgumentException("Seller has not provided Zelle details.");
+            }
+            case pagoMovil -> {
+                if (isBlank(post.getSellerPagoMovilPhone())
+                        || isBlank(post.getSellerPagoMovilCi())
+                        || isBlank(post.getSellerPagoMovilBank()))
+                    throw new IllegalArgumentException("Seller has not provided Pago Móvil details.");
+            }
+            case cash -> {
+                if (isBlank(post.getSellerCashNote()))
+                    throw new IllegalArgumentException("Seller has not provided cash instructions.");
+            }
+            case card -> throw new IllegalArgumentException("Use the card endpoint for card payments.");
+            default -> throw new IllegalArgumentException("Unsupported manual payment method.");
+        }
 
         // Build order
         ResaleOrder order = ResaleOrder.builder()
                 .resalePost(post)
-                .buyer(userRepository.findById(buyerId).orElseThrow(() -> new IllegalArgumentException("Buyer not found")))
+                .buyer(userRepository.findById(buyerId)
+                        .orElseThrow(() -> new IllegalArgumentException("Buyer not found")))
                 .method(method)
                 .status(ResaleOrderStatus.PENDING)
                 .amount(post.getPrice())
@@ -191,11 +227,17 @@ public class ResalePaymentService {
 
         order = resaleOrderRepository.save(order);
 
-        // ping seller
+        // Notify seller
         notificationService.notifyManualPaymentPending(order.getId());
 
         return order;
     }
+
+
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
 
 
 

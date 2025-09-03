@@ -33,7 +33,12 @@ public class ResalePostController {
                     request.price,
                     request.title,
                     request.description,
-                    userDetails.getId()
+                    userDetails.getId(),
+                    request.sellerZelleEmail,
+                    request.sellerPagoMovilPhone,
+                    request.sellerPagoMovilCi,
+                    request.sellerPagoMovilBank,
+                    request.sellerCashNote
             );
             return ResponseEntity.ok(new ResalePostDTO(post));
         } catch (IllegalArgumentException e) {
@@ -83,5 +88,11 @@ public class ResalePostController {
         public String title;
 
         public String description;
+
+        public String sellerZelleEmail;
+        public String sellerPagoMovilPhone;
+        public String sellerPagoMovilCi;
+        public String sellerPagoMovilBank;
+        public String sellerCashNote;
     }
 }
