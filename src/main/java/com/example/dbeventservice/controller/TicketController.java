@@ -355,6 +355,24 @@ public class TicketController {
         ));
     }
 
+    @GetMapping(value = "/qr/public/{ticketId}", produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity<byte[]> getQrForTicketPublic(@PathVariable Long ticketId) {
+        Optional<Ticket> ticketOpt = ticketRepository.findById(ticketId);
+        if (ticketOpt.isEmpty()) return ResponseEntity.status(404).build();
+
+        Ticket ticket = ticketOpt.get();
+        try {
+            String qrText = "TICKET:" + ticket.getId() + ":" + ticket.getOwner().getEmail();
+            byte[] png = QRCodeGenerator.generatePngBytes(qrText, 300);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CACHE_CONTROL, CacheControl.noStore().getHeaderValue())
+                    .body(png);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+
     @Getter
     @Setter
     public static class TicketCheckoutRequest {
