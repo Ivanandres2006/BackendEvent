@@ -63,6 +63,10 @@ public class User {
     @Column(unique = true, nullable = false)
     private String username;
 
+    // ✅ NEW: Stripe customer id (cus_...)
+    @Column(name = "stripe_customer_id", length = 64, unique = true)
+    private String stripeCustomerId;
+
     // ✅ NEW FIELDS
     private String externalProvider; // e.g., "google" or "apple"
 
