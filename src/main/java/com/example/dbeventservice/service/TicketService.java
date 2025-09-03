@@ -1,6 +1,7 @@
 // ✅ UPDATED TicketService.java with ALL fixes
 package com.example.dbeventservice.service;
 import jakarta.transaction.Transactional;
+import jakarta.validation.constraints.Email;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +53,9 @@ public class TicketService {
 
     @Autowired
     private FeeCalculator feeCalculator;
+
+    @Autowired
+    private EmailService emailService;
 
 
     private static final Logger logger = LoggerFactory.getLogger(TicketService.class);
@@ -365,6 +369,7 @@ public class TicketService {
                     ticketRepository.save(ticket);
 
                     ticket.setQrCodeUrl("/api/tickets/qr/" + ticket.getId());
+                    emailService.sendTicketEmail(user.getEmail(), user.getFirstName(), event, tickets);
                     ticketRepository.save(ticket);
 
 

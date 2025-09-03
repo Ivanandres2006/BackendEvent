@@ -35,6 +35,7 @@ public class ResalePaymentService {
     @Autowired private ResaleOrderRepository resaleOrderRepository;
     @Autowired private NotificationService notificationService;
     @Autowired private ResalePostRepository postRepo;
+    @Autowired private EmailService emailService;
 
     @PostConstruct
     public void init() { Stripe.apiKey = stripeApiKey; }
@@ -148,12 +149,28 @@ public class ResalePaymentService {
             Long resalePostId = Long.parseLong(metadata.get("resalePostId"));
             Long buyerId      = Long.parseLong(metadata.get("buyerId"));
 
-            processPaymentAndTransferTicket(resalePostId, buyerId);
+            Ticket ticket = processPaymentAndTransferTicket(resalePostId, buyerId);
+
+            // ✅ Send WKND ticket email to buyer
+            if (ticket != null && ticket.getOwner() != null && ticket.getEvent() != null) {
+                try {
+                    emailService.sendTicketEmail(
+                            ticket.getOwner().getEmail(),
+                            ticket.getOwner().getFirstName(),
+                            ticket.getEvent(),
+                            List.of(ticket)
+                    );
+                } catch (Exception ex) {
+                    System.out.println("⚠️ Failed to send resale ticket email: " + ex.getMessage());
+                }
+            }
+
             System.out.println("✅ Resale confirmed via webhook");
         } catch (Exception e) {
             System.out.println("❌ Resale confirm webhook error: " + e.getMessage());
         }
     }
+
 
     // ---------- OPTIONS ----------
     public PaymentOptionsDTO getPaymentOptions(Long resalePostId) {
@@ -291,6 +308,21 @@ public class ResalePaymentService {
         }
 
         notificationService.notifyManualPaymentConfirmed(orderId);
+
+        // ✅ Send WKND-branded ticket email to buyer
+        if (ticket != null && ticket.getOwner() != null && ticket.getEvent() != null) {
+            try {
+                emailService.sendTicketEmail(
+                        ticket.getOwner().getEmail(),
+                        ticket.getOwner().getFirstName(),
+                        ticket.getEvent(),
+                        List.of(ticket)
+                );
+            } catch (Exception e) {
+                System.out.println("⚠️ Failed to send manual resale ticket email: " + e.getMessage());
+            }
+        }
+
         return ticket;
     }
 }

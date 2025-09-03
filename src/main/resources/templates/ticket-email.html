@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <title>Your WKND Tickets</title>
+</head>
+<body style="margin:0;padding:0;background:#0b0b2b;font-family:Arial,sans-serif;color:#fff;">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:auto;">
+    <tr>
+        <td style="padding:30px;text-align:center;">
+            <h1 style="color:#FFD700;margin-bottom:10px;">WKND</h1>
+            <h2 style="color:#fff;">Thanks for your purchase, <span th:text="${name}"></span> 🎉</h2>
+            <p style="color:#bbb;">Here are your tickets for <b th:text="${event.title}"></b></p>
+        </td>
+    </tr>
+
+    <tr th:each="ticket : ${tickets}">
+        <td style="background:#1a1a3d;margin:10px 0;padding:20px;border-radius:12px;">
+            <h3 style="color:#FFD700;">Ticket #<span th:text="${ticket.id}"></span></h3>
+            <p><b>Event:</b> <span th:text="${event.title}"></span></p>
+            <p><b>Date:</b> <span th:text="${#temporals.format(event.dateTime, 'EEE, MMM d yyyy h:mm a')}"></span></p>
+            <p><b>Location:</b> <span th:text="${event.location}"></span></p>
+
+            <p style="margin:15px 0;">
+                <img th:src="@{'https://backendevent-etce.onrender.com' + ${ticket.qrCodeUrl}}" alt="QR Code"
+                     width="160" style="border:5px solid #FFD700;border-radius:12px;" />
+            </p>
+
+            <p>
+                <a th:href="@{'https://backendevent-etce.onrender.com/api/passes/ticket/' + ${ticket.id}}"
+                   style="display:inline-block;padding:12px 20px;background:#FFD700;color:#000;
+                              border-radius:8px;text-decoration:none;font-weight:bold;">
+                    Add to Apple Wallet
+                </a>
+            </p>
+        </td>
+    </tr>
+
+    <tr>
+        <td style="padding:30px;text-align:center;color:#bbb;">
+            <p>Enjoy your night out 🥳</p>
+            <p>— The WKND Team</p>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

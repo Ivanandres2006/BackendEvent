@@ -1,5 +1,7 @@
 package com.example.dbeventservice.service;
 
+import com.example.dbeventservice.model.Event;
+import com.example.dbeventservice.model.Ticket;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -7,6 +9,8 @@ import org.springframework.mail.javamail.*;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -51,4 +55,24 @@ public class EmailService {
 
         mailSender.send(mimeMessage);
     }
+
+    public void sendTicketEmail(String to, String name, Event event, List<Ticket> tickets) throws MessagingException {
+        MimeMessage mimeMessage = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, "utf-8");
+
+        Context context = new Context();
+        context.setVariable("name", name);
+        context.setVariable("event", event);
+        context.setVariable("tickets", tickets);
+
+        String htmlContent = templateEngine.process("ticket-email", context);
+
+        helper.setTo(to);
+        helper.setSubject("🎟 Your WKND Tickets for " + event.getTitle());
+        helper.setFrom("no-reply@wkndevent.com");
+        helper.setText(htmlContent, true);
+
+        mailSender.send(mimeMessage);
+    }
+
 }
