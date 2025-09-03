@@ -89,7 +89,7 @@ public class EmailService {
         // Render HTML
         String htmlContent = templateEngine.process("ticket-email", context);
 
-        // Build plain-text fallback
+        // Plain-text fallback
         StringBuilder textFallback = new StringBuilder();
         textFallback.append("Hi ").append(name).append(",\n\n")
                 .append("Thanks for your purchase! 🎉\n")
@@ -100,8 +100,11 @@ public class EmailService {
                     .append("Event: ").append(event.getTitle()).append("\n")
                     .append("Date: ").append(event.getDateTime()).append("\n")
                     .append("Location: ").append(event.getLocation()).append("\n")
-                    .append("Show this QR at the entrance:\n")
+                    .append("QR Code (if HTML is disabled):\n")
                     .append("https://backendevent-etce.onrender.com/api/tickets/qr/public/")
+                    .append(t.getId()).append("\n")
+                    .append("Apple Wallet (iPhone only):\n")
+                    .append("https://backendevent-etce.onrender.com/api/passes/ticket/")
                     .append(t.getId()).append("\n\n");
         }
 
@@ -113,7 +116,7 @@ public class EmailService {
         helper.setSubject("Your WKND Tickets for " + event.getTitle());
         helper.setFrom("no-reply@wkndevent.com");
 
-        // First arg = plain-text, second arg = HTML
+        // Send multipart (plain-text + HTML)
         helper.setText(textFallback.toString(), htmlContent);
 
         mailSender.send(mimeMessage);
