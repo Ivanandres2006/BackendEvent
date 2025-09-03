@@ -328,6 +328,7 @@ public class TicketService {
 
 
 
+    @Transactional
     public void confirmPayment(String paymentIntentId) {
         try {
             PaymentIntent intent = PaymentIntent.retrieve(paymentIntentId);
@@ -356,6 +357,7 @@ public class TicketService {
                     return;
                 }
 
+                // ✅ create all tickets first
                 List<Ticket> tickets = new ArrayList<>();
                 for (int i = 0; i < quantity; i++) {
                     Ticket ticket = new Ticket();
@@ -369,30 +371,45 @@ public class TicketService {
                     ticketRepository.save(ticket);
 
                     ticket.setQrCodeUrl("/api/tickets/qr/" + ticket.getId());
-                    emailService.sendTicketEmail(user.getEmail(), user.getFirstName(), event, tickets);
                     ticketRepository.save(ticket);
-
 
                     tickets.add(ticket);
                 }
 
+                // ✅ now send the email with the tickets list
+                if (!tickets.isEmpty()) {
+                    try {
+                        emailService.sendTicketEmail(
+                                user.getEmail(),
+                                user.getFirstName(),
+                                event,
+                                tickets
+                        );
+                    } catch (Exception ex) {
+                        logger.warn("⚠️ Failed to send ticket email", ex);
+                    }
+                }
 
+                // ✅ add user to event attendees if not already
                 if (!event.getAttendees().contains(user)) {
                     event.getAttendees().add(user);
                     eventRepository.save(event);
                     firePurchaseNotifs(event, user);
                 }
 
+                // ✅ decrement tier availability
                 tier.setAvailableQuantity(Math.max(tier.getAvailableQuantity() - quantity, 0));
                 ticketTierRepository.save(tier);
+
                 event.updateAggregateInfoFromTiers();
                 eventRepository.save(event);
 
+                // ✅ promoter tracking
                 String ref = metadata.get("ref");
                 if (ref != null && !ref.isBlank()) {
                     promoterRepository.findByReferralCode(ref).ifPresent(promoter -> {
                         PromoterEvent pe = promoterService.assignEventToPromoter(eventId, promoter.getUser().getUsername());
-                        pe.setTicketsSold(pe.getTicketsSold() + 1);
+                        pe.setTicketsSold(pe.getTicketsSold() + quantity);
                         promoterEventRepository.save(pe);
 
                         PromoterSale sale = new PromoterSale();
@@ -408,6 +425,7 @@ public class TicketService {
             System.out.println("❌ Stripe confirm error: " + e.getMessage());
         }
     }
+
 
     public List<Ticket> getUserTickets(Long userId) {
         return userRepository.findById(userId)
