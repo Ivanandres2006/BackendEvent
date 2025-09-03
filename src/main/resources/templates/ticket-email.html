@@ -25,13 +25,22 @@
         <p style="margin:6px 0;"><b>Location:</b> <span th:text="${event.location}">Location</span></p>
 
         <div style="margin:15px 0;text-align:center;">
-            <!-- Inline Base64 QR -->
-            <img th:if="${ticket.qrBase64} != null"
-                 th:src="'data:image/png;base64,' + ${ticket.qrBase64}"
+            <!-- Primary: inline CID image -->
+            <img th:if="${ticket.qrCid} != null"
+                 th:src="'cid:' + ${ticket.qrCid}"
                  alt="QR Code"
                  width="180"
                  style="display:inline-block;border:4px solid #ddd;border-radius:12px;" />
-            <div th:if="${ticket.qrBase64} == null"
+
+            <!-- Fallback: public URL (works even if inline fails) -->
+            <img th:if="${ticket.qrCid} == null and ${ticket.qrUrl} != null"
+                 th:src="${ticket.qrUrl}"
+                 alt="QR Code (fallback)"
+                 width="180"
+                 style="display:inline-block;border:4px solid #ddd;border-radius:12px;" />
+
+            <!-- Last fallback: tiny note -->
+            <div th:if="${ticket.qrCid} == null and ${ticket.qrUrl} == null"
                  style="color:#c00;font-size:12px;">(QR unavailable)</div>
         </div>
 
