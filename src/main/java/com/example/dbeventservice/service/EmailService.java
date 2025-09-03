@@ -80,37 +80,41 @@ public class EmailService {
     }
 
     public void sendTicketEmail(String to, String name, Event event, List<Ticket> tickets) throws MessagingException {
-        // 1) Build the email first as multipart/alternative
+        // 1) Prepare message in MIXED_RELATED so HTML + inline images live together
         MimeMessage msg = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(
                 msg,
-                MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, // <-- important
+                MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
                 StandardCharsets.UTF_8.name()
         );
         helper.setTo(to);
-        helper.setSubject("Your WKND Tickets for " + event.getTitle());
         helper.setFrom("no-reply@wkndevent.com");
+        helper.setSubject("Your WKND Tickets for " + event.getTitle());
 
-        // 2) Build Thymeleaf model, generate QR PNGs, and attach them inline
+        // 2) Build model for Thymeleaf AND collect inline image payloads to attach after we set HTML
+        record InlineImg(String cid, byte[] data, String contentType) {}
+        List<InlineImg> inlineImages = new ArrayList<>();
         List<Map<String, Object>> items = new ArrayList<>(tickets.size());
+
         for (Ticket t : tickets) {
-            String cid = "qr-" + t.getId();                 // stable Content-ID per ticket
+            String cid = "qr-" + t.getId(); // must match 'cid:' + ${ticket.qrCid} in template
+
+            // Build what you encode in the QR (keep your existing format)
             String qrText = "TICKET:" + t.getId() + ":" + t.getOwner().getEmail();
-            byte[] png = null;
+
             try {
-                png = QRCodeGenerator.generatePngBytes(qrText, 300);
-                helper.addInline(cid, new ByteArrayResource(png), "image/png");
+                byte[] png = QRCodeGenerator.generatePngBytes(qrText, 300);
+                inlineImages.add(new InlineImg(cid, png, "image/png"));
             } catch (Exception e) {
-                // leave without inline image; template will fall back to URL
+                // If QR generation fails, we'll rely on qrUrl fallback in HTML
             }
 
-            // also include a public URL as a safe fallback
             String qrUrl = "https://backendevent-etce.onrender.com/api/tickets/qr/public/" + t.getId();
 
             Map<String, Object> model = new HashMap<>();
             model.put("id", t.getId());
-            model.put("qrCid", cid);      // for <img src="cid:...">
-            model.put("qrUrl", qrUrl);    // fallback <img src="https://...">
+            model.put("qrCid", cid);   // primary: <img src="cid:qr-...">
+            model.put("qrUrl", qrUrl); // fallback remote PNG
             items.add(model);
         }
 
@@ -118,26 +122,21 @@ public class EmailService {
         ctx.setVariable("name", name);
         ctx.setVariable("event", event);
         ctx.setVariable("tickets", items);
+
         String html = templateEngine.process("ticket-email", ctx);
 
-        // Plain-text alternative (already in your code; keep it)
-        StringBuilder text = new StringBuilder();
-        text.append("Hi ").append(name).append("\n\n")
-                .append("Thanks for your purchase! 🎉\n")
-                .append("Here are your tickets for ").append(event.getTitle()).append(":\n\n");
-        for (Ticket t : tickets) {
-            text.append("Ticket #").append(t.getId()).append("\n")
-                    .append("Event: ").append(event.getTitle()).append("\n")
-                    .append("Date: ").append(event.getDateTime()).append("\n")
-                    .append("Location: ").append(event.getLocation()).append("\n")
-                    .append("QR (if images blocked): https://backendevent-etce.onrender.com/api/tickets/qr/public/")
-                    .append(t.getId()).append("\n")
-                    .append("Apple Wallet (iPhone): https://backendevent-etce.onrender.com/api/passes/ticket/")
-                    .append(t.getId()).append("\n\n");
-        }
-        text.append("— The WKND Team\n");
+        // 3) Set HTML body (IMPORTANT: use the boolean 'html' overload for reliable inline resolution)
+        helper.setText(html, true);
 
-        helper.setText(text.toString(), html);
+        // 4) Attach inline images AFTER setting HTML (safer across mail clients)
+        for (InlineImg img : inlineImages) {
+            helper.addInline(img.cid(), new ByteArrayResource(img.data()), img.contentType());
+        }
+
+        // (Optional) If you want a text-only alternative, send a separate plain email, or
+        // switch to a custom MimeStructure. Many clients ignore text/alt when using related inlines.
+
+        // 5) Send
         mailSender.send(msg);
     }
 }

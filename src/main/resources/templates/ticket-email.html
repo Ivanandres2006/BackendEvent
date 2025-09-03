@@ -8,7 +8,9 @@
 <body style="margin:0;padding:0;background:#f4f4f4;font-family:Segoe UI,Arial,sans-serif;color:#1a1a1a;">
 <div style="max-width:480px;margin:40px auto;background:#ffffff;border-radius:12px;padding:36px;box-shadow:0 4px 20px rgba(0,0,0,.05);">
 
-    <h2 style="font-weight:600;margin:0 0 12px 0;">Thanks for your purchase, [[${name}]] 🎉</h2>
+    <h2 style="font-weight:600;margin:0 0 12px 0;">
+        Thanks for your purchase, <span th:text="${name}">Friend</span> 🎉
+    </h2>
     <p style="font-size:15px;line-height:1.6;color:#444;">
         Here are your tickets for <b th:text="${event.title}">Event</b>
     </p>
@@ -45,9 +47,9 @@
         </div>
 
         <div style="text-align:center;">
-            <a th:href="@{'https://backendevent-etce.onrender.com/api/passes/ticket/' + ${ticket.id}}"
+            <a th:href="@{https://backendevent-etce.onrender.com/api/passes/ticket/{id}(id=${ticket.id})}"
                style="display:inline-block;padding:12px 20px;background:#000;color:#fff;border-radius:8px;
-                  text-decoration:none;font-weight:600;font-size:14px;">
+                      text-decoration:none;font-weight:600;font-size:14px;">
                 Add to Apple Wallet
             </a>
         </div>
@@ -62,7 +64,7 @@
         <p style="margin-bottom:16px;">
             <a href="https://www.instagram.com/wknd.app"
                style="display:inline-block;background:#f2f2f2;padding:8px 16px;border-radius:24px;
-                  text-decoration:none;color:#333;font-weight:500;font-size:13px;">
+                      text-decoration:none;color:#333;font-weight:500;font-size:13px;">
                 Follow us
             </a>
         </p>
