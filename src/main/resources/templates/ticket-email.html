@@ -4,17 +4,17 @@
     <meta charset="UTF-8" />
     <title>Your WKND Tickets</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: 'Segoe UI', sans-serif; color: #1a1a1a;">
-<div style="max-width: 480px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; padding: 36px; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+<body style="margin:0; padding:0; background:#f4f4f4; font-family:'Segoe UI', sans-serif; color:#1a1a1a;">
+<div style="max-width:480px; margin:40px auto; background:#ffffff; border-radius:12px; padding:36px; box-shadow:0 4px 20px rgba(0,0,0,0.05);">
 
     <!-- Header -->
-    <h2 style="font-weight: 600; margin-bottom: 12px;">Thanks for your purchase, [[${name}]] 🎉</h2>
-    <p style="font-size: 15px; line-height: 1.6; color:#444;">
+    <h2 style="font-weight:600; margin-bottom:12px;">Thanks for your purchase, [[${name}]] 🎉</h2>
+    <p style="font-size:15px; line-height:1.6; color:#444;">
         Here are your tickets for <b th:text="${event.title}"></b>
     </p>
 
     <!-- Tickets -->
-    <div th:each="ticket : ${tickets}" style="margin: 28px 0; padding: 20px; border:1px solid #eee; border-radius: 10px; background:#fafafa;">
+    <div th:each="ticket : ${tickets}" style="margin:28px 0; padding:20px; border:1px solid #eee; border-radius:10px; background:#fafafa;">
         <h3 style="margin-top:0; font-size:16px; font-weight:600; color:#000;">
             Ticket #<span th:text="${ticket.id}"></span>
         </h3>
@@ -22,8 +22,8 @@
         <p style="margin:6px 0;"><b>Date:</b> <span th:text="${#temporals.format(event.dateTime, 'EEE, MMM d yyyy h:mm a')}"></span></p>
         <p style="margin:6px 0;"><b>Location:</b> <span th:text="${event.location}"></span></p>
 
+        <!-- Inline QR -->
         <div style="margin:15px 0; text-align:center;">
-            <!-- ✅ Inline Base64 QR -->
             <img th:if="${ticket.qrBase64 != null}"
                  th:src="'data:image/png;base64,' + ${ticket.qrBase64}"
                  alt="QR Code"
@@ -31,37 +31,29 @@
                  style="border:4px solid #ddd; border-radius:12px;" />
         </div>
 
-        <div style="text-align:center;">
-            <!-- ✅ iPhone Apple Wallet Button -->
-            <a th:href="@{'https://backendevent-etce.onrender.com/api/passes/ticket/' + ${ticket.id}}"
-               style="display:inline-block; padding:12px 20px; background:#FFD700; color:#000;
-              border-radius:8px; text-decoration:none; font-weight:bold; font-size:14px;">
-                Add to Apple Wallet
+        <!-- Apple Wallet Button -->
+        <div style="text-align:center; margin-top:10px;">
+            <a th:href="@{'https://backendevent-etce.onrender.com/api/passes/ticket/' + ${ticket.id}}">
+                <img th:if="${appleWalletBadgeBase64 != null}"
+                     th:src="'data:image/png;base64,' + ${appleWalletBadgeBase64}"
+                     alt="Add to Apple Wallet"
+                     style="width:180px; height:auto; border-radius:8px;" />
             </a>
         </div>
     </div>
 
-    <!-- Footer message -->
-    <p style="margin-top: 24px; font-size: 14px; color:#555;">Enjoy your night out 🥳</p>
-    <p style="font-size: 14px; color:#888;">— The WKND Team</p>
-
-    <!-- Divider -->
-    <hr style="border: none; border-top: 1px solid #ddd; margin: 40px 0 20px 0;" />
-
     <!-- Footer -->
-    <div style="text-align: center; font-size: 12px; color: #888;">
-        <p style="margin-bottom: 16px;">
-            <a href="https://www.instagram.com/wknd.app"
-               style="display: inline-flex; align-items: center; background-color: #f2f2f2;
-                      padding: 8px 16px; border-radius: 24px; text-decoration: none; color: #333;
-                      font-weight: 500; font-size: 13px;">
+    <p style="margin-top:24px; font-size:14px; color:#555;">Enjoy your night out 🥳</p>
+    <p style="font-size:14px; color:#888;">— The WKND Team</p>
+    <hr style="border:none; border-top:1px solid #ddd; margin:40px 0 20px 0;" />
+    <div style="text-align:center; font-size:12px; color:#888;">
+        <p style="margin-bottom:16px;">
+            <a href="https://www.instagram.com/wknd.app" style="text-decoration:none; color:#333; font-weight:500;">
                 Follow us
             </a>
         </p>
-        <p style="margin: 6px 0;">
-            <a href="https://www.wkndevent.com/" style="color: #555; text-decoration: none;">www.wkndevent.com</a>
-        </p>
-        <p style="margin: 8px 0 0 0; color: #999;">© 2025 WKND</p>
+        <p><a href="https://www.wkndevent.com/" style="color:#555; text-decoration:none;">www.wkndevent.com</a></p>
+        <p style="margin:8px 0 0 0; color:#999;">© 2025 WKND</p>
     </div>
 </div>
 </body>
