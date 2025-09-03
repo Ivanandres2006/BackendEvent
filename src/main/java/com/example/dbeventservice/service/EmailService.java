@@ -1,5 +1,6 @@
 package com.example.dbeventservice.service;
 
+import com.example.dbeventservice.dto.TicketEmailItem;
 import com.example.dbeventservice.model.Event;
 import com.example.dbeventservice.model.Ticket;
 import com.example.dbeventservice.util.QRCodeGenerator;
@@ -77,60 +78,54 @@ public class EmailService {
     }
 
     public void sendTicketEmail(String to, String name, Event event, List<Ticket> tickets) throws MessagingException {
-        MimeMessage mimeMessage = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "utf-8");
-
-        List<Map<String, Object>> ticketModels = new ArrayList<>();
+        // Build a simple model list with id + inline Base64 QR for Thymeleaf
+        List<Map<String, Object>> items = new ArrayList<>(tickets.size());
         for (Ticket t : tickets) {
-            Map<String, Object> model = new HashMap<>();
-            model.put("id", t.getId());
-            model.put("event", t.getEvent());
-
+            String base64 = null;
             try {
                 String qrText = "TICKET:" + t.getId() + ":" + t.getOwner().getEmail();
                 byte[] png = QRCodeGenerator.generatePngBytes(qrText, 300);
-                String base64 = Base64.getEncoder().encodeToString(png);
-                model.put("qrBase64", base64);
-            } catch (Exception e) {
-                model.put("qrBase64", null);
-            }
-            ticketModels.add(model);
+                base64 = Base64.getEncoder().encodeToString(png);
+            } catch (Exception ignored) {}
+            items.add(Map.of(
+                    "id", t.getId(),
+                    "qrBase64", base64
+            ));
         }
 
-        // ✅ Prepare Thymeleaf context
-        Context context = new Context();
-        context.setVariable("name", name);
-        context.setVariable("event", event);
-        context.setVariable("tickets", ticketModels);
-        context.setVariable("appleWalletBadgeBase64", appleWalletBadgeBase64);
+        // Thymeleaf context
+        Context ctx = new Context();
+        ctx.setVariable("name", name);
+        ctx.setVariable("event", event);
+        ctx.setVariable("tickets", items);
 
-        String htmlContent = templateEngine.process("ticket-email", context);
+        String html = templateEngine.process("ticket-email", ctx);
 
-        // ✅ Plain-text fallback
-        StringBuilder textFallback = new StringBuilder();
-        textFallback.append("Hi ").append(name).append(",\n\n")
+        // Plain-text fallback (good for deliverability + text-only clients)
+        StringBuilder text = new StringBuilder();
+        text.append("Hi ").append(name).append("\n\n")
                 .append("Thanks for your purchase! 🎉\n")
                 .append("Here are your tickets for ").append(event.getTitle()).append(":\n\n");
-
         for (Ticket t : tickets) {
-            textFallback.append("Ticket #").append(t.getId()).append("\n")
+            text.append("Ticket #").append(t.getId()).append("\n")
                     .append("Event: ").append(event.getTitle()).append("\n")
                     .append("Date: ").append(event.getDateTime()).append("\n")
                     .append("Location: ").append(event.getLocation()).append("\n")
-                    .append("QR: https://backendevent-etce.onrender.com/api/tickets/qr/public/")
+                    .append("QR (open if HTML blocked): https://backendevent-etce.onrender.com/api/tickets/qr/public/")
                     .append(t.getId()).append("\n")
-                    .append("Apple Wallet (iPhone only): https://backendevent-etce.onrender.com/api/passes/ticket/")
+                    .append("Apple Wallet (iPhone): https://backendevent-etce.onrender.com/api/passes/ticket/")
                     .append(t.getId()).append("\n\n");
         }
+        text.append("— The WKND Team\n");
 
-        textFallback.append("Enjoy your night out 🥳\n")
-                .append("— The WKND Team\n");
-
+        // Send multipart/alternative (plain + HTML)
+        MimeMessage msg = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(msg, true, "UTF-8");
         helper.setTo(to);
         helper.setSubject("Your WKND Tickets for " + event.getTitle());
-        helper.setFrom("no-reply@wkndevent.com");
-        helper.setText(textFallback.toString(), htmlContent);
+        helper.setFrom("no-reply@wkndevent.com"); // ensure this domain is verified with your email provider
+        helper.setText(text.toString(), html);
 
-        mailSender.send(mimeMessage);
+        mailSender.send(msg);
     }
 }
