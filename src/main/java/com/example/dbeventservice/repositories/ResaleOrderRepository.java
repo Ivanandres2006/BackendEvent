@@ -20,4 +20,7 @@ public interface ResaleOrderRepository extends JpaRepository<ResaleOrder, Long> 
 
     // NEW: count helpers
     long countByResalePostAndStatus(ResalePost resalePost, ResaleOrderStatus status);
+
+    List<ResaleOrder> findByResalePostAndStatus(ResalePost resalePost, ResaleOrderStatus status);
+
 }

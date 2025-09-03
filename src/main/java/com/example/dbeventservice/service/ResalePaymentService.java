@@ -109,6 +109,14 @@ public class ResalePaymentService {
         );
     }
 
+    // Guard: event must still be in the future
+    private void assertEventNotPast(ResalePost post) {
+        Event e = post.getTicket() != null ? post.getTicket().getEvent() : null;
+        if (e != null && e.getDateTime() != null && !e.getDateTime().isAfter(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Event already started/past; transfer not allowed.");
+        }
+    }
+
     @Transactional
     public Ticket processPaymentAndTransferTicket(Long resalePostId, Long buyerId) {
         ResalePost post = resalePostRepository.findById(resalePostId)
@@ -118,7 +126,15 @@ public class ResalePaymentService {
         if (Objects.equals(post.getSeller().getId(), buyerId))
             throw new IllegalArgumentException("You cannot buy your own resale post");
 
+        assertEventNotPast(post);
+
         Ticket ticket = post.getTicket();
+        if (ticket == null) throw new IllegalStateException("Ticket missing.");
+        // Extra safety: ensure the seller still owns the ticket at transfer time
+        if (ticket.getOwner() == null || !Objects.equals(ticket.getOwner().getId(), post.getSeller().getId())) {
+            throw new IllegalStateException("Ticket is no longer owned by the seller.");
+        }
+
         User buyer = userRepository.findById(buyerId)
                 .orElseThrow(() -> new IllegalArgumentException("Buyer not found"));
 
@@ -128,7 +144,7 @@ public class ResalePaymentService {
         ticket.setQrCodeUrl("/api/tickets/qr/" + ticket.getId());
         ticketRepository.save(ticket);
 
-        // Mark post as sold (and time)
+        // Mark post as sold (and timestamp)
         post.setSold(true);
         post.setSoldAt(LocalDateTime.now());
         resalePostRepository.save(post);
@@ -249,18 +265,48 @@ public class ResalePaymentService {
         if (!Objects.equals(post.getSeller().getId(), sellerId)) {
             throw new IllegalArgumentException("Only the seller can confirm this order.");
         }
+        if (order.getMethod() == PaymentMethod.card) {
+            throw new IllegalArgumentException("Card payments are confirmed automatically.");
+        }
+
+        // Idempotency: if already paid and ticket is with buyer, just return it
+        if (order.getStatus() == ResaleOrderStatus.PAID) {
+            Ticket t = post.getTicket();
+            if (t != null && t.getOwner() != null &&
+                    Objects.equals(t.getOwner().getId(), order.getBuyer().getId())) {
+                return t; // already transferred earlier
+            }
+            // If we reach here something is inconsistent
+            throw new IllegalStateException("Order already marked PAID but ticket not owned by buyer.");
+        }
+
         if (post.isSold()) throw new IllegalArgumentException("This post is already sold.");
         if (order.getStatus() != ResaleOrderStatus.PENDING) {
             throw new IllegalArgumentException("Only PENDING orders can be confirmed.");
         }
 
-        // Mark the order paid & timestamp it, but DO NOT mark post sold here.
+        assertEventNotPast(post);
+
+        // Mark the order paid & timestamp it (do not set post.sold here)
         order.setStatus(ResaleOrderStatus.PAID);
         order.setConfirmedAt(LocalDateTime.now());
         resaleOrderRepository.save(order);
 
-        // This will set post.sold and transfer the ticket. (Fixes your 400.)
+        // Do the transfer (sets post.sold + timestamps)
         Ticket ticket = processPaymentAndTransferTicket(post.getId(), order.getBuyer().getId());
+
+        // Cancel any competing PENDING orders for the same post
+        var competing = resaleOrderRepository.findByResalePostAndStatus(post, ResaleOrderStatus.PENDING);
+        if (!competing.isEmpty()) {
+            for (ResaleOrder o : competing) {
+                if (!Objects.equals(o.getId(), order.getId())) {
+                    o.setStatus(ResaleOrderStatus.CANCELLED);
+                    o.setCancelReason("Post sold to another buyer");
+                    o.setCancelledAt(LocalDateTime.now());
+                }
+            }
+            resaleOrderRepository.saveAll(competing);
+        }
 
         notificationService.notifyManualPaymentConfirmed(orderId);
         return ticket;
