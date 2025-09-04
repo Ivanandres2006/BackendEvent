@@ -10,8 +10,8 @@ import com.example.dbeventservice.repositories.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
@@ -22,26 +22,15 @@ import java.util.stream.Stream;
 @Service
 public class ChatService {
 
-    @Autowired
-    private ChatRoomRepository chatRoomRepository;
+    @Autowired private ChatRoomRepository chatRoomRepository;
+    @Autowired private MessageRepository messageRepository;
+    @Autowired private UserRepository userRepository;
+    @Autowired private ResalePostRepository resalePostRepository;
+    @Autowired private CounterOfferRepository counterOfferRepository;
+    @Autowired private EventRepository eventRepository;
 
-    @Autowired
-    private MessageRepository messageRepository;
-
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private ResalePostRepository resalePostRepository;
-
-    @Autowired
-    private CounterOfferRepository counterOfferRepository;
-
-    @Autowired
-    private EventRepository eventRepository;
-
-    @Autowired
-    private PromoterRepository promoterRepository;
+    // ✅ Use PromoterEventRepository instead of PromoterRepository for event↔promoter relations
+    @Autowired private PromoterEventRepository promoterEventRepository;
 
     public ChatRoom createOrGetChatRoom(Long resalePostId, Long buyerId) {
         ResalePost post = resalePostRepository.findById(resalePostId)
@@ -59,7 +48,7 @@ public class ChatService {
                             .resalePost(post)
                             .buyer(buyer)
                             .seller(post.getSeller())
-                            .type(ChatType.RESALE)   // <-- THIS LINE IS CRUCIAL!
+                            .type(ChatType.RESALE)
                             .build();
                     return chatRoomRepository.save(room);
                 });
@@ -102,7 +91,6 @@ public class ChatService {
     public void acceptBuyer(Long chatRoomId) {
         ChatRoom room = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new IllegalArgumentException("Chat room not found"));
-
         room.setAccepted(true);
         chatRoomRepository.save(room);
     }
@@ -114,25 +102,21 @@ public class ChatService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        // ✅ Check membership based on chat type
         if (room.getType() == ChatType.RESALE) {
             if (room.getBuyer() == null || room.getSeller() == null) {
                 throw new IllegalStateException("RESALE chat is missing buyer or seller");
             }
-
             if (!room.getBuyer().equals(user) && !room.getSeller().equals(user)) {
                 throw new IllegalArgumentException("User not part of this resale chat");
             }
         } else {
-            boolean isParticipant = room.getParticipants().stream()
-                    .anyMatch(u -> u.getId().equals(user.getId()));
-
+            boolean isParticipant = room.getParticipants() != null &&
+                    room.getParticipants().stream().anyMatch(u -> u.getId().equals(user.getId()));
             if (!isParticipant) {
                 throw new IllegalArgumentException("User not a participant of this chat");
             }
         }
 
-        // ✅ Continue processing messages
         List<Message> messages = messageRepository.findByChatRoomOrderByTimestampAsc(room);
         List<CounterOffer> offers = counterOfferRepository.findByChatRoom(room);
 
@@ -143,21 +127,17 @@ public class ChatService {
                 updated = true;
             }
         }
-        if (updated) {
-            messageRepository.saveAll(messages);
-        }
+        if (updated) messageRepository.saveAll(messages);
 
         List<MessageDTO> messageDTOs = messages.stream()
                 .map(m -> MessageDTO.builder()
                         .id(m.getId())
                         .senderId(m.getSender().getId())
-                        .senderName(m.getSender().getUsername()) // 👈 Use getFullName() if preferred
+                        .senderName(m.getSender().getUsername())
                         .content(m.getContent())
                         .timestamp(m.getTimestamp())
                         .build())
                 .toList();
-
-
 
         List<MessageDTO> offerDTOs = offers.stream()
                 .map(o -> MessageDTO.builder()
@@ -171,19 +151,14 @@ public class ChatService {
                         .build())
                 .toList();
 
-        System.out.println(" Participants in chat " + room.getId() + ": " +
-                room.getParticipants().stream().map(User::getUsername).toList());
-
         return Stream.concat(messageDTOs.stream(), offerDTOs.stream())
                 .sorted(Comparator.comparing(MessageDTO::getTimestamp))
                 .toList();
     }
 
-
     public CounterOffer createCounterOffer(Long chatRoomId, Long senderId, double amount) {
         ChatRoom room = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new IllegalArgumentException("Chat room not found"));
-
         User sender = userRepository.findById(senderId)
                 .orElseThrow(() -> new IllegalArgumentException("Sender not found"));
 
@@ -193,10 +168,7 @@ public class ChatService {
 
         boolean hasPending = counterOfferRepository.findByChatRoom(room).stream()
                 .anyMatch(o -> o.getSender().equals(sender) && o.getStatus() == OfferStatus.PENDING);
-
-        if (hasPending) {
-            throw new IllegalArgumentException("You already have a pending counteroffer.");
-        }
+        if (hasPending) throw new IllegalArgumentException("You already have a pending counteroffer.");
 
         CounterOffer offer = CounterOffer.builder()
                 .chatRoom(room)
@@ -243,7 +215,6 @@ public class ChatService {
         offer.setStatus(OfferStatus.DECLINED);
         counterOfferRepository.save(offer);
 
-        // Send auto message to buyer
         Message message = Message.builder()
                 .chatRoom(offer.getChatRoom())
                 .sender(offer.getChatRoom().getSeller())
@@ -254,43 +225,27 @@ public class ChatService {
     }
 
     public boolean userCanAccessImage(Long userId, String filename) {
-        // ✅ Optional: You can parse chatRoomId or user ID from filename if encoded
-        // But a safer way: find all chat messages with image content
-
-        List<ChatRoom> rooms = chatRoomRepository.findByBuyerOrSeller(
-                userRepository.findById(userId).orElseThrow(),
-                userRepository.findById(userId).orElseThrow()
-        );
-
+        User user = userRepository.findById(userId).orElseThrow();
+        List<ChatRoom> rooms = chatRoomRepository.findByBuyerOrSeller(user, user);
         for (ChatRoom room : rooms) {
             List<Message> messages = messageRepository.findByChatRoomOrderByTimestampAsc(room);
             for (Message m : messages) {
-                if (m.getContent().contains("[img]" + filename)) {
-                    return true;
-                }
+                if (m.getContent().contains("[img]" + filename)) return true;
             }
         }
-
         return false;
     }
 
     public boolean userHasAccessToImage(Long userId, String filename) {
         User user = userRepository.findById(userId).orElse(null);
         if (user == null) return false;
-
-        // Find all chat rooms the user is part of
         List<ChatRoom> rooms = chatRoomRepository.findByBuyerOrSeller(user, user);
-
-        // For each room, check if any message contains the filename
         for (ChatRoom room : rooms) {
             List<Message> messages = messageRepository.findByChatRoom(room);
             for (Message msg : messages) {
-                if (msg.getContent().contains(filename)) {
-                    return true;
-                }
+                if (msg.getContent().contains(filename)) return true;
             }
         }
-
         return false;
     }
 
@@ -298,25 +253,20 @@ public class ChatService {
         String uploadsDir = "chat-images/";
         File dir = new File(uploadsDir);
         if (!dir.exists()) dir.mkdirs();
-
         String uniqueName = UUID.randomUUID().toString() + ".jpg";
         File destination = new File(dir, uniqueName);
         file.transferTo(destination);
-
-        return uniqueName; // Only return filename (not full path)
+        return uniqueName;
     }
 
     public int getUnreadMessageCount(Long userId) {
         User user = userRepository.findById(userId).orElseThrow();
         List<ChatRoom> rooms = chatRoomRepository.findByBuyerOrSeller(user, user);
-
         int unreadCount = 0;
         for (ChatRoom room : rooms) {
             List<Message> messages = messageRepository.findByChatRoomAndIsReadFalse(room);
             for (Message m : messages) {
-                if (!m.getSender().equals(user)) {
-                    unreadCount++;
-                }
+                if (!m.getSender().equals(user)) unreadCount++;
             }
         }
         return unreadCount;
@@ -326,9 +276,8 @@ public class ChatService {
         User user = userRepository.findById(userId).orElseThrow();
 
         List<ChatRoom> resaleRooms = chatRoomRepository.findByBuyerOrSeller(user, user);
-        List<ChatRoom> eventRooms = chatRoomRepository.findByParticipantsContaining(user);
+        List<ChatRoom> eventRooms  = chatRoomRepository.findByParticipantsContaining(user);
 
-        // 🟩 Resale chats
         List<ChatRoomSummaryDTO> resaleSummaries = resaleRooms.stream()
                 .filter(r -> r.getType() == ChatType.RESALE)
                 .map(room -> {
@@ -341,8 +290,6 @@ public class ChatService {
                             ? room.getSeller().getId()
                             : room.getBuyer().getId();
 
-
-
                     return ChatRoomSummaryDTO.builder()
                             .chatRoomId(room.getId())
                             .resalePostId(room.getResalePost().getId())
@@ -353,10 +300,8 @@ public class ChatService {
                             .type(room.getType().name())
                             .otherUserId(otherUserId)
                             .build();
-
                 }).toList();
 
-        // 🟨 Event-based chats (DIRECT, PROMOTER_GROUP)
         List<ChatRoomSummaryDTO> eventSummaries = eventRooms.stream()
                 .filter(r -> r.getType() != ChatType.RESALE)
                 .map(room -> {
@@ -367,15 +312,11 @@ public class ChatService {
 
                     Long otherUserId = room.getParticipants().stream()
                             .filter(u -> !u.getId().equals(userId))
-                            .findFirst()
-                            .map(User::getId)
-                            .orElse(null); // could be null if no other user
+                            .findFirst().map(User::getId).orElse(null);
 
                     String otherUsername = room.getParticipants().stream()
                             .filter(u -> !u.getId().equals(userId))
-                            .findFirst()
-                            .map(User::getUsername)
-                            .orElse("unknown");
+                            .findFirst().map(User::getUsername).orElse("unknown");
 
                     return ChatRoomSummaryDTO.builder()
                             .chatRoomId(room.getId())
@@ -389,10 +330,8 @@ public class ChatService {
                             .otherUserId(otherUserId)
                             .otherUsername(otherUsername)
                             .build();
-
                 }).toList();
 
-        // 🧩 Combine all chats
         return Stream.concat(resaleSummaries.stream(), eventSummaries.stream()).toList();
     }
 
@@ -402,52 +341,38 @@ public class ChatService {
         User user = userRepository.findById(userId).orElseThrow();
 
         boolean isOwner = event.getCreatedBy().getId().equals(userId);
-        boolean isPromoter = promoterRepository.existsByEvent_IdAndUser_Id(eventId, userId);
+        boolean isPromoter = promoterEventRepository.existsByEvent_IdAndPromoter_User_Id(eventId, userId); // ✅ fixed
 
-        if (!isOwner && !isPromoter) {
-            throw new AccessDeniedException("Not allowed");
-        }
+        if (!isOwner && !isPromoter) throw new AccessDeniedException("Not allowed");
 
-        ChatRoom room = chatRoomRepository.findByEventIdAndType(eventId, ChatType.PROMOTER_GROUP)
-                .orElse(null);
-
+        ChatRoom room = chatRoomRepository.findByEventIdAndType(eventId, ChatType.PROMOTER_GROUP).orElse(null);
         if (room == null) {
             room = new ChatRoom();
             room.setType(ChatType.PROMOTER_GROUP);
             room.setEventId(eventId);
-            room.setParticipants(new HashSet<>()); // ✅ ADD THIS LINE
+            room.setParticipants(new HashSet<>());
         }
 
         Set<User> participants = new HashSet<>();
         participants.add(event.getCreatedBy());
 
-        promoterRepository.findAllByEvent_Id(eventId).forEach(p -> {
-            if (p.getUser() != null) {
-                participants.add(p.getUser());
+        // ✅ pull promoters via PromoterEvent
+        List<PromoterEvent> peList = promoterEventRepository.findByEvent(event);
+        for (PromoterEvent pe : peList) {
+            if (pe.getPromoter() != null && pe.getPromoter().getUser() != null) {
+                participants.add(pe.getPromoter().getUser());
             }
-        });
+        }
 
-        promoterRepository.findAllByEvent_Id(eventId).forEach(p -> {
-            System.out.println("🎯 Promoter found: " + (p.getUser() != null ? p.getUser().getUsername() : "null user"));
-            if (p.getUser() != null) {
-                participants.add(p.getUser());
-            }
-        });
-
-        room.setParticipants(participants); // ✅ Use setParticipants instead of clear + addAll
+        room.setParticipants(participants);
         chatRoomRepository.saveAndFlush(room);
-
-        System.out.println("👥 Refreshed participants in group chat: " +
-                room.getParticipants().stream().map(User::getUsername).toList());
 
         return room;
     }
 
     @Transactional
     public void refreshPromoterGroupParticipants(Long eventId) {
-        ChatRoom room = chatRoomRepository.findByEventIdAndType(eventId, ChatType.PROMOTER_GROUP)
-                .orElse(null);
-
+        ChatRoom room = chatRoomRepository.findByEventIdAndType(eventId, ChatType.PROMOTER_GROUP).orElse(null);
         if (room == null) return;
 
         Event event = eventRepository.findById(eventId).orElseThrow();
@@ -455,33 +380,24 @@ public class ChatService {
         Set<User> participants = new HashSet<>();
         participants.add(event.getCreatedBy());
 
-        List<Promoter> promoters = promoterRepository.findAllByEvent_Id(eventId);
-        System.out.println("🔍 Found promoters: " +
-                promoters.stream().map(p -> p.getUser().getUsername()).toList());
-
-        for (Promoter p : promoters) {
-            if (p.getUser() != null) {
-                participants.add(p.getUser());
+        List<PromoterEvent> peList = promoterEventRepository.findByEvent(event);
+        for (PromoterEvent pe : peList) {
+            if (pe.getPromoter() != null && pe.getPromoter().getUser() != null) {
+                participants.add(pe.getPromoter().getUser());
             }
         }
 
-        room.setParticipants(participants); // ✅ Again, use setter directly
+        room.setParticipants(participants);
         chatRoomRepository.saveAndFlush(room);
-
-        System.out.println("✅ Updated promoter group participants: " +
-                room.getParticipants().stream().map(User::getUsername).toList());
     }
 
     public List<ChatRoom> getAllUserChatRooms(Long userId) {
         User user = userRepository.findById(userId).orElseThrow();
-
         Set<ChatRoom> allRooms = new HashSet<>();
         allRooms.addAll(chatRoomRepository.findByBuyerOrSeller(user, user));
         allRooms.addAll(chatRoomRepository.findByParticipantsContaining(user));
-
         return new ArrayList<>(allRooms);
     }
-
 
     public boolean hasPendingOffer(Long chatRoomId, Long senderId) {
         return counterOfferRepository.existsByChatRoomIdAndSenderIdAndStatus(chatRoomId, senderId, "PENDING");
@@ -495,23 +411,16 @@ public class ChatService {
         Optional<User> adminOpt = userRepository.findAll().stream()
                 .filter(u -> u.getRole() == Role.ADMIN)
                 .findFirst();
-
-        if (adminOpt.isEmpty()) {
-            throw new IllegalStateException("No admin found");
-        }
+        if (adminOpt.isEmpty()) throw new IllegalStateException("No admin found");
 
         User admin = adminOpt.get();
-
         if (user.getId().equals(admin.getId())) {
             throw new IllegalArgumentException("Cannot chat with yourself");
         }
 
         Optional<ChatRoom> existing = chatRoomRepository.findDirectChat(null, userId, admin.getId());
-        if (existing.isPresent()) {
-            return existing.get(); // ✅ Return existing room — no new message
-        }
+        if (existing.isPresent()) return existing.get();
 
-        // 🆕 Create new room
         ChatRoom room = new ChatRoom();
         room.setType(ChatType.DIRECT);
         room.setEventId(null);
@@ -522,7 +431,6 @@ public class ChatService {
         room.setParticipants(participants);
         chatRoomRepository.save(room);
 
-        // 🔎 Check if chat already has messages (shouldn't, since it’s new — but safe)
         boolean hasMessages = messageRepository.findByChatRoom(room).size() > 0;
         if (!hasMessages) {
             Message welcome = Message.builder()
@@ -537,22 +445,17 @@ public class ChatService {
         return room;
     }
 
-
     public ChatRoom createOrFetchDirectChat(Long userId, Long eventId) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("Event not found"));
-
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
         User owner = event.getCreatedBy();
-
-        // 🛑 Prevent owner from chatting with themselves
         if (user.getId().equals(owner.getId())) {
             throw new IllegalArgumentException("Cannot chat with yourself");
         }
 
-        // 🔁 Return existing chat or create new
         return chatRoomRepository.findDirectChat(eventId, userId, owner.getId())
                 .orElseGet(() -> {
                     ChatRoom room = new ChatRoom();
@@ -567,8 +470,6 @@ public class ChatService {
                     return chatRoomRepository.save(room);
                 });
     }
-
-
 
     public List<ChatRoom> getUserChatRooms(Long userId) {
         User user = userRepository.findById(userId).orElseThrow();

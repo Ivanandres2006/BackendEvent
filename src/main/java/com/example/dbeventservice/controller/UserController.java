@@ -1,18 +1,22 @@
 package com.example.dbeventservice.controller;
 
 import com.example.dbeventservice.auth.jwt.UserDetailsImpl;
+import com.example.dbeventservice.model.Event;
+import com.example.dbeventservice.model.PromoterEvent;
 import com.example.dbeventservice.model.User;
+import com.example.dbeventservice.model.Enum.TicketStatus;
 import com.example.dbeventservice.repositories.FollowRepository;
 import com.example.dbeventservice.repositories.PromoterRepository;
 import com.example.dbeventservice.repositories.TicketRepository;
 import com.example.dbeventservice.repositories.UserRepository;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import com.example.dbeventservice.model.Enum.TicketStatus;
-
 
 import java.util.List;
 import java.util.Objects;
@@ -26,10 +30,8 @@ public class UserController {
 
     @Autowired private UserRepository userRepository;
     @Autowired private PromoterRepository promoterRepository;
-
     @Autowired private FollowRepository followRepository;
     @Autowired private TicketRepository ticketRepository;
-
 
     @GetMapping("/{id}")
     public ResponseEntity<?> getPublicUser(@PathVariable Long id) {
@@ -39,7 +41,6 @@ public class UserController {
         }
         User u = opt.get();
 
-        // counts
         long followersCount = followRepository.countAcceptedFollowers(u);
         long followingCount = followRepository.countAcceptedFollowing(u);
         long friendsCount   = followRepository.countFriends(u);
@@ -47,7 +48,6 @@ public class UserController {
                 .findDistinctEventsByOwnerAndStatus(u.getId(), TicketStatus.PAID)
                 .size();
 
-        // respect privacy for public view
         boolean isPrivate = u.isHideProfile();
 
         PublicUserResponse dto = PublicUserResponse.builder()
@@ -70,8 +70,10 @@ public class UserController {
     @GetMapping("/by-username/{username}")
     public ResponseEntity<?> getPublicUserByUsername(@PathVariable String username) {
         User u = userRepository.findByUsername(username).orElse(null);
-        if (u == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new MessageResponse("User not found"));
-        return getPublicUser(u.getId()); // reuse logic above
+        if (u == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new MessageResponse("User not found"));
+        }
+        return getPublicUser(u.getId());
     }
 
     @GetMapping("/me")
@@ -85,13 +87,17 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new MessageResponse("User not found"));
         }
 
-        // Promoted events (kept)
-        List<Long> promotedEvents = promoterRepository.findByUser(user).stream()
-                .map(p -> p.getEvent() != null ? p.getEvent().getId() : null)
-                .filter(Objects::nonNull)
-                .toList();
+        // ✅ FIX: collect promoted event IDs via Promoter -> PromoterEvent -> Event
+        List<Long> promotedEvents = promoterRepository.findByUser(user)
+                .map(promoter -> promoter.getEvents().stream()
+                        .map(PromoterEvent::getEvent)     // go through PromoterEvent
+                        .filter(Objects::nonNull)
+                        .map(Event::getId)
+                        .distinct()
+                        .toList()
+                )
+                .orElse(List.of());
 
-        // NEW: social + events counts
         long followersCount = followRepository.countAcceptedFollowers(user);
         long followingCount = followRepository.countAcceptedFollowing(user);
         long friendsCount   = followRepository.countFriends(user);
@@ -113,10 +119,10 @@ public class UserController {
                 .hideProfile(user.isHideProfile())
                 .hideAttendance(user.isHideAttendance())
                 .promotedEvents(promotedEvents)
-                .followersCount(followersCount)   // 👈 added
-                .followingCount(followingCount)   // 👈 added
-                .friendsCount(friendsCount)       // 👈 added
-                .eventsCount(eventsCount)         // 👈 added
+                .followersCount(followersCount)
+                .followingCount(followingCount)
+                .friendsCount(friendsCount)
+                .eventsCount(eventsCount)
                 .build());
     }
 
@@ -150,9 +156,7 @@ public class UserController {
         return ResponseEntity.ok(new MessageResponse("Profile updated"));
     }
 
-    private static String nz(String s) {
-        return s == null ? "" : s;
-    }
+    private static String nz(String s) { return s == null ? "" : s; }
 
     // ==== DTOs ====
 
@@ -163,9 +167,9 @@ public class UserController {
 
     @Getter @Setter
     static class UpdateProfileRequest {
-        private String avatarUrl;     // optional
-        private String bio;           // optional
-        private Boolean hideProfile;  // optional
+        private String avatarUrl;       // optional
+        private String bio;             // optional
+        private Boolean hideProfile;    // optional
         private Boolean hideAttendance; // optional
     }
 
@@ -188,7 +192,7 @@ public class UserController {
 
         private List<Long> promotedEvents;
 
-        // NEW
+        // counts
         private long followersCount;
         private long followingCount;
         private long friendsCount;
@@ -201,10 +205,9 @@ public class UserController {
         private String username;
         private String displayName;
         private String avatarUrl;
-        private String bio;           // empty if private
-        private boolean isPrivate;    // true if hideProfile == true
+        private String bio;        // empty if private
+        private boolean isPrivate; // true if hideProfile == true
 
-        // extra counts for UI (client can ignore if not needed)
         private long followersCount;
         private long followingCount;
         private long friendsCount;

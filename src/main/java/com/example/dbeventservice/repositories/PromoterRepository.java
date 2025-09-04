@@ -11,17 +11,19 @@ import java.util.Optional;
 
 public interface PromoterRepository extends JpaRepository<Promoter, Long> {
     Optional<Promoter> findByUser(User user);
-    Optional<Promoter> findByReferralCode(String code);
+    Optional<Promoter> findByUser_Id(Long userId);
 
-    boolean existsByEvent_IdAndUser_Id(Long eventId, Long userId);
-    // PromoterRepository.java
-    @Query("SELECT pe.promoter FROM PromoterEvent pe WHERE pe.event.id = :eventId")
-    List<Promoter> findAllByEvent_Id(@Param("eventId") Long eventId);
-
-    List<Promoter> findAllByUserId(Long userId);
-
-    boolean existsByUser(User user);
+    Optional<Promoter> findByReferralCode(String referralCode);
     boolean existsByReferralCode(String referralCode);
+
+    // Optional: eager-load events & event for a single call
+    @Query("""
+        select p from Promoter p
+        left join fetch p.events pe
+        left join fetch pe.event
+        where p.user = :user
+    """)
+    Optional<Promoter> findWithEventsByUser(@Param("user") User user);
 
 
 
