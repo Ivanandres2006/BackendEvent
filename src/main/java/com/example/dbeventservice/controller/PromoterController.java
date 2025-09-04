@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static com.example.dbeventservice.controller.AnalyticsController.displayNameOf;
+
 @RestController
 @RequestMapping("/api/promoters")
 public class PromoterController {
@@ -102,4 +104,27 @@ public class PromoterController {
         PromoterEvent pe = promoterService.updateCommission(eventId, username, enabled, rate, retroactive);
         return ResponseEntity.ok(pe);
     }
+
+    @GetMapping("/search")
+    public ResponseEntity<?> searchUsers(@RequestParam String q) {
+        String term = q.trim();
+        if (term.isEmpty()) return ResponseEntity.ok(List.of());
+
+        // Use A or B depending on the repo method you added
+        List<User> found = userRepository
+                .findTop10ByUsernameStartingWithIgnoreCaseOrFirstNameStartingWithIgnoreCaseOrLastNameStartingWithIgnoreCase(
+                        term, term, term
+                );
+
+        List<com.example.dbeventservice.dto.UserSearchDTO> out = found.stream()
+                .map(u -> new com.example.dbeventservice.dto.UserSearchDTO(
+                        u.getId(),
+                        u.getUsername() == null ? "" : u.getUsername(),
+                        displayNameOf(u)
+                ))
+                .toList();
+
+        return ResponseEntity.ok(out);
+    }
+
 }

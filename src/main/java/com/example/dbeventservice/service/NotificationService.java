@@ -9,6 +9,8 @@ import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.Notification;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 // NotificationService.java (add imports)
@@ -22,6 +24,10 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
+
+    //Is about the the notfication about the promoter
+    private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
+    //----------------------------------------
 
     private final FCMTokenRepository tokenRepo;
     private final UserRepository userRepo;
@@ -366,6 +372,16 @@ public class NotificationService {
         var tokens = tokenRepo.findAllByUsernameIn(usernames).stream().map(FCMToken::getToken).toList();
         String collapse = data != null && data.containsKey("eventId") ? "event-" + data.get("eventId") : null;
         sendMulticast(tokens, title, body, data, collapse);
+    }
+
+    public void notifyPromoterAssigned(Long eventId, Long promoterUserId) {
+        try {
+            // TODO: replace with your real notifier (push, email, in-app)
+            log.info("📣 User {} assigned as promoter for event {}", promoterUserId, eventId);
+            // Example: create in-app notification entity, or send FCM/email, etc.
+        } catch (Exception e) {
+            log.warn("Failed to notify promoter assignment", e);
+        }
     }
 
 

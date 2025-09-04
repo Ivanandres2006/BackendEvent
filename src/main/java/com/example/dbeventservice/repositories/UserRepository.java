@@ -29,4 +29,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT u.username FROM User u WHERE LOWER(u.username) LIKE LOWER(CONCAT(:query, '%'))")
     List<String> findUsernamesStartingWith(@Param("query") String query);
 
+    List<User> findTop10ByUsernameStartingWithIgnoreCaseOrFirstNameStartingWithIgnoreCaseOrLastNameStartingWithIgnoreCase(
+            String usernamePrefix, String fnPrefix, String lnPrefix);
+
+
 }

@@ -20,6 +20,8 @@ public class PromoterService {
     @Autowired private UserRepository userRepository;
     @Autowired private EventRepository eventRepository;
     @Autowired private ChatService chatService; // keep your group-refresh hook
+    @Autowired private NotificationService notificationService;
+
 
     @Transactional
     public Promoter ensurePromoter(User user) {
@@ -70,6 +72,9 @@ public class PromoterService {
 
         // idempotent chat refresh
         chatService.refreshPromoterGroupParticipants(eventId);
+
+        notificationService.notifyPromoterAssigned(eventId, user.getId());
+
 
         return pe;
     }
