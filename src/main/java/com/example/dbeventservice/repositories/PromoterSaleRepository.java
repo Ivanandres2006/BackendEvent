@@ -8,5 +8,5 @@ import java.util.List;
 
 public interface PromoterSaleRepository extends JpaRepository<PromoterSale, Long> {
     List<PromoterSale> findByPromoterEvent(PromoterEvent promoterEvent);
+    long countByPromoterEvent(PromoterEvent promoterEvent);
 }
-

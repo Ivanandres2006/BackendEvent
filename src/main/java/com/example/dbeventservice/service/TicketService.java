@@ -1,5 +1,6 @@
 // ✅ UPDATED TicketService.java with ALL fixes
 package com.example.dbeventservice.service;
+
 import jakarta.transaction.Transactional;
 import jakarta.validation.constraints.Email;
 import org.slf4j.Logger;
@@ -22,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -57,9 +59,7 @@ public class TicketService {
     @Autowired
     private EmailService emailService;
 
-
     private static final Logger logger = LoggerFactory.getLogger(TicketService.class);
-
 
     @Value("${stripe.secret.key}")
     private String stripeSecretKey;
@@ -77,7 +77,6 @@ public class TicketService {
         this.userRepository = userRepository;
         this.feeCalculator = feeCalculator;
     }
-
 
     @PostConstruct
     public void init() {
@@ -111,7 +110,7 @@ public class TicketService {
 
         Map<String, Object> response = new HashMap<>();
 
-        // ✅ Handle free tickets and Zelle
+        // ✅ Handle free tickets and manual rails
         boolean isFree = tier.getPrice() <= 0.0;
         boolean isManualPayment = paymentMethod != null &&
                 (paymentMethod.equalsIgnoreCase("zelle") ||
@@ -152,17 +151,37 @@ public class TicketService {
             event.updateAggregateInfoFromTiers();
             eventRepository.save(event);
 
+            // ✅ promoter tracking (manual/free): tickets & revenue always, commission only if enabled
             if (ref != null && !ref.isBlank()) {
                 promoterRepository.findByReferralCode(ref).ifPresent(promoter -> {
                     PromoterEvent pe = promoterService.assignEventToPromoter(eventId, promoter.getUser().getUsername());
-                    pe.setTicketsSold(pe.getTicketsSold() + 1);
-                    promoterEventRepository.save(pe);
 
                     PromoterSale sale = new PromoterSale();
                     sale.setPromoterEvent(pe);
                     sale.setBuyer(user);
                     sale.setTimestamp(LocalDateTime.now());
+                    sale.setQuantity(Math.max(1, quantity));
+
+                    BigDecimal unit = BigDecimal.valueOf(tier.getPrice() == null ? 0.0 : tier.getPrice());
+                    sale.setUnitPrice(unit);
+                    sale.setTotalPrice(unit.multiply(BigDecimal.valueOf(sale.getQuantity())));
                     promoterSaleRepository.save(sale);
+
+                    // Always aggregate tickets/revenue
+                    pe.setTicketsSold(pe.getTicketsSold() + sale.getQuantity());
+                    pe.setGrossRevenue(pe.getGrossRevenue().add(sale.getTotalPrice()));
+
+                    // Only accrue commission if enabled (and sale after activation)
+                    if (pe.isCommissionEnabled()) {
+                        if (pe.getCommissionActivatedAt() == null ||
+                                !sale.getTimestamp().isBefore(pe.getCommissionActivatedAt())) {
+                            pe.setCommissionEarned(
+                                    pe.getCommissionEarned().add(sale.getTotalPrice().multiply(pe.getCommissionRate()))
+                            );
+                        }
+                    }
+
+                    promoterEventRepository.save(pe);
                 });
             }
 
@@ -170,7 +189,7 @@ public class TicketService {
                 firePurchaseNotifs(event, user);
             }
 
-            // ✅ ADD THIS (compute and include the same breakdown for UI)
+            // ✅ fee breakdown for UI
             com.example.dbeventservice.model.Enum.PaymentMethod _method =
                     com.example.dbeventservice.model.Enum.PaymentMethod.from(paymentMethod);
             long _unitPriceCents = Math.round((tier.getPrice() == null ? 0.0 : tier.getPrice()) * 100.0);
@@ -182,16 +201,13 @@ public class TicketService {
             return response;
         }
 
-        // ✅ Stripe Payment (card)
-        // ✅ Compute unified service fee; Stripe fee folded in for card
+        // ✅ Stripe (card)
         PaymentMethod _method = PaymentMethod.from(paymentMethod);
         long _unitPriceCents = Math.round((tier.getPrice() == null ? 0.0 : tier.getPrice()) * 100.0);
         FeeBreakdown _fee = feeCalculator.quote(_unitPriceCents, quantity, _method);
 
-        // Return the breakdown so the app can show it post-checkout too
         response.put("breakdown", _fee);
 
-        // Stripe amount must be the TOTAL (subtotal + service fee)
         long amount = _fee.getTotalCents();
 
         PaymentIntentCreateParams.Builder builder = PaymentIntentCreateParams.builder()
@@ -226,29 +242,21 @@ public class TicketService {
 
     private void firePurchaseNotifs(Event event, User buyer) {
         try {
-            // 1) Owner: “New ticket sold”
             notificationService.notifyOwnerTicketPurchased(event.getId(), buyer.getId());
-
-            // 2) Owner milestones: 50% / 80% / sold out (sent once each)
             notificationService.checkAndNotifyMilestones(event.getId());
-
-            // 3) Followers of buyer: “Ivan is going…”
             notificationService.notifyFriendsGoing(buyer.getId(), event.getId());
         } catch (Exception e) {
             logger.warn("⚠️ Failed to send purchase notifications", e);
         }
     }
 
-
     public Map<String, Object> createReunionCheckout(
             Long userId,
             Long eventId,
             String email
     ) throws StripeException {
-
         Optional<User> userOpt = userRepository.findById(userId);
         Optional<Event> eventOpt = eventRepository.findById(eventId);
-
         if (userOpt.isEmpty() || eventOpt.isEmpty()) {
             throw new IllegalArgumentException("Invalid user or event ID");
         }
@@ -261,13 +269,12 @@ public class TicketService {
         double perGuestAmount = event.getBudgetGoal() / totalGuests;
         long amount = (long) (perGuestAmount * 100);
 
-        // ✅ Create PaymentIntent
         PaymentIntentCreateParams intentParams = PaymentIntentCreateParams.builder()
                 .setAmount(amount)
                 .setCurrency("usd")
                 .setReceiptEmail(email)
                 .putMetadata("userId", String.valueOf(userId))
-                .putMetadata("username", user.getUsername()) // ✅ ADD THIS
+                .putMetadata("username", user.getUsername())
                 .putMetadata("eventId", String.valueOf(eventId))
                 .putMetadata("type", "reunion")
                 .setAutomaticPaymentMethods(
@@ -292,14 +299,13 @@ public class TicketService {
 
             String usernameRaw = metadata.get("username");
             String eventIdStr = metadata.get("eventId");
-
             if (usernameRaw == null || eventIdStr == null) return;
 
             String usernameNormalized = usernameRaw.trim().toLowerCase();
             Long eventId = Long.parseLong(eventIdStr);
 
-            // Try normal repo method
-            Optional<ReunionGuest> guestOpt = reunionGuestRepository.findByUsernameIgnoreCaseAndEventId(usernameNormalized, eventId);
+            Optional<ReunionGuest> guestOpt = reunionGuestRepository
+                    .findByUsernameIgnoreCaseAndEventId(usernameNormalized, eventId);
 
             if (guestOpt.isPresent()) {
                 ReunionGuest guest = guestOpt.get();
@@ -309,24 +315,22 @@ public class TicketService {
                 return;
             }
 
-            // 🔁 Fallback: loop through guests and match manually
             List<ReunionGuest> allGuests = reunionGuestRepository.findByEventId(eventId);
             for (ReunionGuest guest : allGuests) {
-                if (guest.getUsername() != null && guest.getUsername().trim().toLowerCase().equals(usernameNormalized)) {
+                if (guest.getUsername() != null &&
+                        guest.getUsername().trim().toLowerCase().equals(usernameNormalized)) {
                     guest.setPaid(true);
                     guest.setAttending(true);
                     reunionGuestRepository.save(guest);
-                    reunionGuestRepository.flush(); // ✅ Ensure it flushes to DB
+                    reunionGuestRepository.flush();
                     return;
                 }
             }
 
         } catch (Exception e) {
-            e.printStackTrace(); // ✅ Make sure logs go to stderr
+            e.printStackTrace();
         }
     }
-
-
 
     @Transactional
     public void confirmPayment(String paymentIntentId) {
@@ -345,7 +349,6 @@ public class TicketService {
                 Optional<User> userOpt = userRepository.findById(userId);
                 Optional<Event> eventOpt = eventRepository.findById(eventId);
                 Optional<TicketTier> tierOpt = ticketTierRepository.findById(ticketTierId);
-
                 if (userOpt.isEmpty() || eventOpt.isEmpty() || tierOpt.isEmpty()) return;
 
                 User user = userOpt.get();
@@ -357,7 +360,7 @@ public class TicketService {
                     return;
                 }
 
-                // ✅ create all tickets first
+                // create tickets
                 List<Ticket> tickets = new ArrayList<>();
                 for (int i = 0; i < quantity; i++) {
                     Ticket ticket = new Ticket();
@@ -376,7 +379,7 @@ public class TicketService {
                     tickets.add(ticket);
                 }
 
-                // ✅ now send the email with the tickets list
+                // email
                 if (!tickets.isEmpty()) {
                     try {
                         emailService.sendTicketEmail(
@@ -390,33 +393,48 @@ public class TicketService {
                     }
                 }
 
-                // ✅ add user to event attendees if not already
                 if (!event.getAttendees().contains(user)) {
                     event.getAttendees().add(user);
                     eventRepository.save(event);
                     firePurchaseNotifs(event, user);
                 }
 
-                // ✅ decrement tier availability
                 tier.setAvailableQuantity(Math.max(tier.getAvailableQuantity() - quantity, 0));
                 ticketTierRepository.save(tier);
 
                 event.updateAggregateInfoFromTiers();
                 eventRepository.save(event);
 
-                // ✅ promoter tracking
+                // promoter tracking (Stripe success)
                 String ref = metadata.get("ref");
                 if (ref != null && !ref.isBlank()) {
                     promoterRepository.findByReferralCode(ref).ifPresent(promoter -> {
                         PromoterEvent pe = promoterService.assignEventToPromoter(eventId, promoter.getUser().getUsername());
-                        pe.setTicketsSold(pe.getTicketsSold() + quantity);
-                        promoterEventRepository.save(pe);
 
                         PromoterSale sale = new PromoterSale();
                         sale.setPromoterEvent(pe);
                         sale.setBuyer(user);
                         sale.setTimestamp(LocalDateTime.now());
+                        sale.setQuantity(Math.max(1, quantity));
+
+                        BigDecimal unit = BigDecimal.valueOf(tier.getPrice() == null ? 0.0 : tier.getPrice());
+                        sale.setUnitPrice(unit);
+                        sale.setTotalPrice(unit.multiply(BigDecimal.valueOf(sale.getQuantity())));
                         promoterSaleRepository.save(sale);
+
+                        pe.setTicketsSold(pe.getTicketsSold() + sale.getQuantity());
+                        pe.setGrossRevenue(pe.getGrossRevenue().add(sale.getTotalPrice()));
+
+                        if (pe.isCommissionEnabled()) {
+                            if (pe.getCommissionActivatedAt() == null ||
+                                    !sale.getTimestamp().isBefore(pe.getCommissionActivatedAt())) {
+                                pe.setCommissionEarned(
+                                        pe.getCommissionEarned().add(sale.getTotalPrice().multiply(pe.getCommissionRate()))
+                                );
+                            }
+                        }
+
+                        promoterEventRepository.save(pe);
                     });
                 }
             }
@@ -425,7 +443,6 @@ public class TicketService {
             System.out.println("❌ Stripe confirm error: " + e.getMessage());
         }
     }
-
 
     public List<Ticket> getUserTickets(Long userId) {
         return userRepository.findById(userId)
