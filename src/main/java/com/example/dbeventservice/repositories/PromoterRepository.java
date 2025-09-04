@@ -23,4 +23,6 @@ public interface PromoterRepository extends JpaRepository<Promoter, Long> {
     boolean existsByUser(User user);
     boolean existsByReferralCode(String referralCode);
 
+
+
 }
