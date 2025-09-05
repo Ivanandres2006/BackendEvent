@@ -37,6 +37,7 @@ public class PromoterController {
         return ResponseEntity.ok(p);
     }
 
+    // in PromoterController
     @PostMapping("/{eventId}/assign")
     public ResponseEntity<?> assignEvent(
             @PathVariable Long eventId,
@@ -48,8 +49,16 @@ public class PromoterController {
             return ResponseEntity.status(403).body("Unauthorized");
         }
         PromoterEvent pe = promoterService.assignEventToPromoter(eventId, username);
-        return ResponseEntity.ok(pe);
+
+        // return a *small* DTO / map instead of PromoterEvent
+        return ResponseEntity.ok(Map.of(
+                "eventId", event.getId(),
+                "promoterId", pe.getPromoter().getId(),
+                "username", pe.getPromoter().getUser().getUsername()
+        ));
+        // Or: return ResponseEntity.noContent().build();
     }
+
 
     @GetMapping("/me")
     public ResponseEntity<?> me(@AuthenticationPrincipal UserDetailsImpl userDetails) {
