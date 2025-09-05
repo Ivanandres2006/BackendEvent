@@ -1,15 +1,26 @@
+// src/main/java/com/example/dbeventservice/service/PromoterService.java
 package com.example.dbeventservice.service;
 
 import com.example.dbeventservice.dto.ReferredBuyerDTO;
-import com.example.dbeventservice.model.*;
-import com.example.dbeventservice.repositories.*;
+import com.example.dbeventservice.model.Event;
+import com.example.dbeventservice.model.Promoter;
+import com.example.dbeventservice.model.PromoterEvent;
+import com.example.dbeventservice.model.PromoterSale;
+import com.example.dbeventservice.model.User;
+import com.example.dbeventservice.repositories.EventRepository;
+import com.example.dbeventservice.repositories.PromoterEventRepository;
+import com.example.dbeventservice.repositories.PromoterRepository;
+import com.example.dbeventservice.repositories.PromoterSaleRepository;
+import com.example.dbeventservice.repositories.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 public class PromoterService {
@@ -21,7 +32,6 @@ public class PromoterService {
     @Autowired private EventRepository eventRepository;
     @Autowired private ChatService chatService; // keep your group-refresh hook
     @Autowired private NotificationService notificationService;
-
 
     @Transactional
     public Promoter ensurePromoter(User user) {
