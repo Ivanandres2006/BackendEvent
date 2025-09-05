@@ -1,12 +1,14 @@
 package com.example.dbeventservice.model;
 
 import com.example.dbeventservice.model.Enum.ChatType;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.util.HashSet;
 import java.util.Set;
 
+@JsonIgnoreProperties({"hibernateLazyInitializer","handler"})
 @Entity
 @Getter
 @Setter

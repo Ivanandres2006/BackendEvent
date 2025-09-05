@@ -32,4 +32,13 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
     List<ChatRoom> findByParticipantsContaining(User user);
 
+    // ChatRoomRepository.java
+    @Query("""
+select c from ChatRoom c
+left join fetch c.participants p
+where c.id = :id
+""")
+    Optional<ChatRoom> findWithParticipants(Long id);
+
+
 }

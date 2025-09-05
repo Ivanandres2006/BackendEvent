@@ -1,11 +1,13 @@
 package com.example.dbeventservice.model;
 
 import com.example.dbeventservice.model.Enum.Role;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
+@JsonIgnoreProperties({"hibernateLazyInitializer","handler"})
 @Entity
 @Table(name = "users")
 @Data

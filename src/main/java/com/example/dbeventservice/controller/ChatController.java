@@ -69,9 +69,8 @@ public class ChatController {
 
 
     @GetMapping("/my-rooms")
-    public ResponseEntity<List<ChatRoom>> getUserChatRooms(@AuthenticationPrincipal UserDetailsImpl userDetails) {
-        List<ChatRoom> rooms = chatService.getAllUserChatRooms(userDetails.getId());
-        return ResponseEntity.ok(rooms);
+    public ResponseEntity<List<ChatRoomSummaryDTO>> getUserChatRooms(@AuthenticationPrincipal UserDetailsImpl userDetails) {
+        return ResponseEntity.ok(chatService.getChatRoomSummaries(userDetails.getId()));
     }
 
 
@@ -151,13 +150,16 @@ public class ChatController {
         return ResponseEntity.ok(Map.of("id", room.getId()));
     }
 
-
+    // AFTER
     @GetMapping("/promoter-group/{eventId}")
-    public ResponseEntity<ChatRoom> getPromoterGroupChat(
+    public ResponseEntity<Map<String, Long>> getPromoterGroupChat(
             @AuthenticationPrincipal UserDetailsImpl user,
             @PathVariable Long eventId) {
-        return ResponseEntity.ok(chatService.createOrFetchPromoterGroupChat(user.getId(), eventId));
+        ChatRoom room = chatService.createOrFetchPromoterGroupChat(user.getId(), eventId);
+        return ResponseEntity.ok(Map.of("id", room.getId()));
     }
+
+
 
 
     @PostMapping("/{chatRoomId}/counteroffer")
