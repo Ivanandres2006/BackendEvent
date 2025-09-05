@@ -55,28 +55,19 @@ public class PromoterService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("Event not found"));
 
+        // ensure promoter (also ensures referralCode)
         Promoter promoter = ensurePromoter(user);
 
-        PromoterEvent pe = promoterEventRepository.findByPromoterAndEvent(promoter, event)
+        return promoterEventRepository.findByPromoterAndEvent(promoter, event)
                 .orElseGet(() -> {
-                    PromoterEvent created = new PromoterEvent();
-                    created.setPromoter(promoter);
-                    created.setEvent(event);
-                    created.setTicketsSold(0);
-                    created.setGrossRevenue(BigDecimal.ZERO);
-                    created.setCommissionEarned(BigDecimal.ZERO);
-                    created.setCommissionEnabled(false);
-                    created.setCommissionActivatedAt(null);
-                    return promoterEventRepository.save(created);
+                    PromoterEvent pe = new PromoterEvent();
+                    pe.setPromoter(promoter);
+                    pe.setEvent(event);
+                    pe.setTicketsSold(0);
+                    pe.setGrossRevenue(java.math.BigDecimal.ZERO);
+                    // default 10% already set in entity; ensure not null if your file differs
+                    return promoterEventRepository.save(pe);
                 });
-
-        // idempotent chat refresh
-        chatService.refreshPromoterGroupParticipants(eventId);
-
-        notificationService.notifyPromoterAssigned(eventId, user.getId());
-
-
-        return pe;
     }
 
     /**

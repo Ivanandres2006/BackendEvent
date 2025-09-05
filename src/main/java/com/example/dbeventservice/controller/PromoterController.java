@@ -1,14 +1,13 @@
 package com.example.dbeventservice.controller;
 
 import com.example.dbeventservice.auth.jwt.UserDetailsImpl;
+import com.example.dbeventservice.dto.PromoterEventView;
 import com.example.dbeventservice.dto.ReferredBuyerDTO;
 import com.example.dbeventservice.model.*;
-import com.example.dbeventservice.repositories.EventRepository;
-import com.example.dbeventservice.repositories.PromoterEventRepository;
-import com.example.dbeventservice.repositories.PromoterRepository;
-import com.example.dbeventservice.repositories.UserRepository;
+import com.example.dbeventservice.repositories.*;
 import com.example.dbeventservice.service.PromoterService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -29,6 +28,8 @@ public class PromoterController {
     @Autowired private EventRepository eventRepository;
     @Autowired private PromoterEventRepository promoterEventRepository;
     @Autowired private PromoterRepository promoterRepository;
+    @Autowired private PromoterSaleRepository promoterSaleRepository;
+
 
     @PostMapping("/become-me")
     public ResponseEntity<?> becomeMe(@AuthenticationPrincipal UserDetailsImpl userDetails) {
@@ -38,27 +39,62 @@ public class PromoterController {
     }
 
     // in PromoterController
-    @PostMapping("/{eventId}/assign")
-    public ResponseEntity<?> assignEvent(
-            @PathVariable Long eventId,
-            @RequestParam String username,
-            @AuthenticationPrincipal UserDetailsImpl userDetails
-    ) {
-        Event event = eventRepository.findById(eventId).orElseThrow();
-        if (!event.getCreatedBy().getId().equals(userDetails.getId())) {
-            return ResponseEntity.status(403).body("Unauthorized");
-        }
-        PromoterEvent pe = promoterService.assignEventToPromoter(eventId, username);
-
-        // return a *small* DTO / map instead of PromoterEvent
-        return ResponseEntity.ok(Map.of(
-                "eventId", event.getId(),
-                "promoterId", pe.getPromoter().getId(),
-                "username", pe.getPromoter().getUser().getUsername()
-        ));
-        // Or: return ResponseEntity.noContent().build();
+    // ✅ Owner assigns a promoter to an event (idempotent)
+    @PostMapping(value="/{eventId}/assign", produces= MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> assign(@PathVariable Long eventId,
+                                    @RequestParam("username") String username) {
+        promoterService.assignEventToPromoter(eventId, username);
+        return ResponseEntity.ok(Map.of("ok", true, "username", username));
     }
 
+    @GetMapping(value="/event/{eventId}/dashboard", produces=MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<List<PromoterEventView>> dashboard(@PathVariable Long eventId) {
+        Event event = eventRepository.findById(eventId).orElseThrow();
+        List<PromoterEvent> rows = promoterEventRepository.findByEvent(event);
+
+        List<PromoterEventView> out = rows.stream().map(pe -> {
+            User u = pe.getPromoter().getUser();
+            var userView = new PromoterEventView.UserSummary(
+                    u.getId(),
+                    u.getUsername(),
+                    displayNameOf(u)
+            );
+            var promoterView = new PromoterEventView.PromoterSummary(
+                    pe.getPromoter().getId(),
+                    userView
+            );
+            return new PromoterEventView(
+                    pe.getId(),
+                    promoterView,
+                    pe.getTicketsSold(),
+                    pe.getGrossRevenue(),
+                    pe.isCommissionEnabled(),
+                    pe.getCommissionRate(),
+                    pe.getCommissionEarned()
+            );
+        }).toList();
+
+        return ResponseEntity.ok(out);
+    }
+
+    @GetMapping(value="/event/{eventId}/promoter/{promoterId}/buyers", produces=MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<List<ReferredBuyerDTO>> buyers(@PathVariable Long eventId,
+                                                         @PathVariable Long promoterId) {
+        Event event = eventRepository.findById(eventId).orElseThrow();
+        Promoter promoter = promoterRepository.findById(promoterId).orElseThrow();
+        PromoterEvent pe = promoterEventRepository.findByPromoterAndEvent(promoter, event)
+                .orElseThrow();
+
+        var out = promoterSaleRepository.findByPromoterEvent(pe).stream()
+                .map(s -> new ReferredBuyerDTO(
+                        s.getId(),
+                        s.getBuyer().getUsername(),
+                        s.getBuyer().getEmail(),
+                        s.getTimestamp()
+                ))
+                .toList();
+        return ResponseEntity.ok(out);
+    }
 
     @GetMapping("/me")
     public ResponseEntity<?> me(@AuthenticationPrincipal UserDetailsImpl userDetails) {
