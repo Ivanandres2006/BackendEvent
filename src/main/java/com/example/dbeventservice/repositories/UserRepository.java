@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface UserRepository extends JpaRepository<User, Long> {
+public interface UserRepository extends JpaRepository<User, Long>, UserRepositoryExtra {
     Optional<User> findByEmail(String email);
     Optional<User> findByVerificationCode(String code);
     Optional<User> findByExternalProviderAndExternalId(String provider, String externalId);
