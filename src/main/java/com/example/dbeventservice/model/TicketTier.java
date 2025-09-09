@@ -29,6 +29,10 @@ public class TicketTier {
     @Column(name = "force_open")
     private Boolean forceOpen;
 
+    private String description; // optional description
+    private Integer orderIndex; // manual order if provided
+
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "event_id", nullable = false)
     @JsonIgnore

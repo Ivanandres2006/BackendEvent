@@ -387,13 +387,16 @@ public class EventController {
             event.setPrice(minPrice);
         }
 
+        int index = 0;
         if (req.ticketTiers != null) {
             for (TicketTierRequest tierReq : req.ticketTiers) {
                 TicketTier tier = new TicketTier();
+                tier.setTierOrder(tierReq.order > 0 ? tierReq.order : index++);
                 tier.setName(tierReq.name);
                 tier.setPrice(tierReq.price);
                 tier.setAvailableQuantity(tierReq.quantity);
                 tier.setTierOrder(tierReq.order);
+                tier.setDescription(tierReq.getDescription()); // ✅ save description
                 tier.setStartTime(tierReq.startTime);
                 tier.setEndTime(tierReq.endTime);
                 tier.setForceOpen(tierReq.isForceOpen());
@@ -597,10 +600,12 @@ public class EventController {
                     tier.setPrice(tierReq.price);
                     tier.setAvailableQuantity(tierReq.quantity);
                     tier.setTierOrder(tierReq.order);
+                    tier.setDescription(tierReq.getDescription()); // ✅ update description
                     tier.setStartTime(tierReq.startTime);
                     tier.setEndTime(tierReq.endTime);
                     tier.setForceOpen(tierReq.forceOpen);
                     tier.setEvent(event);
+
 
                     updatedTiers.add(tier);
                 }
@@ -665,6 +670,7 @@ public class EventController {
         public double price;
         public int quantity;
         private int order;
+        private String description; // new
         private LocalDateTime startTime;
         private LocalDateTime endTime;
         private boolean forceOpen;
