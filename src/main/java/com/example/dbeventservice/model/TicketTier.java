@@ -21,24 +21,25 @@ public class TicketTier {
     private String name;
     private Double price;
     private Integer availableQuantity;
+
+    // sequential order number (default flow)
     private Integer tierOrder;
+
+    // If true, organizer wants it open immediately regardless of order
+    @Column(name = "force_open")
+    private Boolean forceOpen = false;
+
+    private String description;
 
     private LocalDateTime startTime;
     private LocalDateTime endTime;
-
-    @Column(name = "force_open")
-    private Boolean forceOpen;
-
-    private String description; // optional description
-    private Integer orderIndex; // manual order if provided
-
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "event_id", nullable = false)
     @JsonIgnore
     private Event event;
-
 }
+
 
 
 
