@@ -411,6 +411,16 @@ public class EventController {
         ));
     }
 
+    @GetMapping("/{eventId}/tiers")
+    public ResponseEntity<?> getEventTiers(@PathVariable Long eventId) {
+        if (!eventRepository.existsById(eventId)) {
+            return ResponseEntity.status(404).body(Map.of("error", "Event not found"));
+        }
+        var tiers = ticketTierRepository.findByEventIdOrderByTierOrderAsc(eventId);
+        return ResponseEntity.ok(tiers);
+    }
+
+
     @GetMapping("/rsvp-attending")
     public ResponseEntity<List<Long>> getEventsUserRsvpedTo(@AuthenticationPrincipal UserDetailsImpl userDetails) {
         String userEmail = userDetails.getEmail();
