@@ -416,6 +416,7 @@ public class EventController {
         if (!eventRepository.existsById(eventId)) {
             return ResponseEntity.status(404).body(Map.of("error", "Event not found"));
         }
+        // Uses your existing repo method already used elsewhere
         var tiers = ticketTierRepository.findByEventIdOrderByTierOrderAsc(eventId);
         return ResponseEntity.ok(tiers);
     }
