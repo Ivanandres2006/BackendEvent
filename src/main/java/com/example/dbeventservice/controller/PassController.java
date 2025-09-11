@@ -29,9 +29,10 @@ public class PassController {
             @PathVariable Long ticketId,
             @AuthenticationPrincipal UserDetailsImpl me
     ) throws Exception {
+
+        if (me == null) return ResponseEntity.status(401).build();
         Ticket t = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new RuntimeException("Ticket not found"));
-
         // Security: only owner of the ticket OR event owner can fetch
         Long myId = me.getId();
         boolean isOwner = t.getOwner() != null && t.getOwner().getId().equals(myId);
