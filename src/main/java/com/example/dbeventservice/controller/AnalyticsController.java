@@ -26,24 +26,28 @@ public class AnalyticsController {
 
     // ---------- CURRENT USER ----------
     @GetMapping("/profile")
-    public ResponseEntity<ProfileAnalyticsDTO> myProfile(@AuthenticationPrincipal UserDetailsImpl me) {
-        if (me == null) return ResponseEntity.badRequest().build();
+    public ResponseEntity<ProfileAnalyticsDTO> myProfile(
+            @AuthenticationPrincipal UserDetailsImpl me
+    ) {
+        if (me == null) return ResponseEntity.status(401).build(); // ← 401 when no principal
         var user = userRepo.findById(me.getId()).orElse(null);
-        if (user == null) return ResponseEntity.badRequest().build();
+        if (user == null) return ResponseEntity.notFound().build();
         return ResponseEntity.ok(buildProfileAnalytics(user));
     }
 
     // ---------- PUBLIC: ANY USER BY ID ----------
     @GetMapping("/user/{id}/profile")
-    public ResponseEntity<ProfileAnalyticsDTO> userProfile(@PathVariable Long id,
-                                                           @AuthenticationPrincipal UserDetailsImpl viewer) {
+    public ResponseEntity<ProfileAnalyticsDTO> userProfile(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetailsImpl viewer
+    ) {
         var userOpt = userRepo.findById(id);
         if (userOpt.isEmpty()) return ResponseEntity.notFound().build();
         var target = userOpt.get();
 
         boolean isSelf = (viewer != null && Objects.equals(viewer.getId(), target.getId()));
         if (target.isHideAttendance() && !isSelf) {
-            // Return an empty DTO (you can change this to 403 if you prefer)
+            // Return empty/obscured data if the user hides attendance
             return ResponseEntity.ok(new ProfileAnalyticsDTO(
                     0, 0d, 0d, 0d, 0, 0, null, null, null, null, null
             ));
