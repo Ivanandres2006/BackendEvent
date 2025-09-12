@@ -400,6 +400,7 @@ public class EventController {
                 tier.setStartTime(tierReq.startTime);
                 tier.setEndTime(tierReq.endTime);
                 tier.setForceOpen(tierReq.isForceOpen());
+                tier.setHideQuantity(tierReq.hideQuantity);
                 tier.setEvent(event);
                 ticketTierRepository.save(tier);
             }
@@ -615,6 +616,7 @@ public class EventController {
                     tier.setStartTime(tierReq.startTime);
                     tier.setEndTime(tierReq.endTime);
                     tier.setForceOpen(tierReq.forceOpen);
+                    tier.setHideQuantity(tierReq.hideQuantity);
                     tier.setEvent(event);
 
 
@@ -681,6 +683,7 @@ public class EventController {
         public double price;
         public int quantity;
         private int order;
+        private Boolean hideQuantity;
         private String description; // new
         private LocalDateTime startTime;
         private LocalDateTime endTime;
