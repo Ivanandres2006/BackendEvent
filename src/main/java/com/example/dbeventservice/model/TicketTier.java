@@ -29,6 +29,10 @@ public class TicketTier {
     @Column(name = "force_open")
     private Boolean forceOpen = false;
 
+    // 👇 NEW: owner can hide the remaining quantity from buyers
+    @Column(name = "hide_quantity", nullable = false)
+    private Boolean hideQuantity = false;
+
     private String description;
 
     private LocalDateTime startTime;
