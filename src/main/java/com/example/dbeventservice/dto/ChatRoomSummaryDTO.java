@@ -1,22 +1,17 @@
 // src/main/java/com/example/dbeventservice/dto/ChatRoomSummaryDTO.java
 package com.example.dbeventservice.dto;
 
-import lombok.*;
+import com.example.dbeventservice.model.Enum.ChatType;
 
-@Getter
-@Setter
-@AllArgsConstructor
-@NoArgsConstructor
-@Builder
+import java.time.Instant;
+
 public class ChatRoomSummaryDTO {
-    private Long chatRoomId;
-    private Long resalePostId;
-    private String title;
-    private String sellerName;
-    private int unreadMessages;
-    private Long buyerId;
-    private Long otherUserId;
-    private Long eventId;
-    private String type;
-    private String otherUsername;
+    public Long id;
+    public ChatType type;
+    public String displayName;
+    public String iconUrl;
+    public String lastMessagePreview;
+    public Instant lastMessageAt;
+    public long unreadCount;
 }
+

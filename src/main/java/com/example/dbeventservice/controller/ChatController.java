@@ -1,256 +1,148 @@
 package com.example.dbeventservice.controller;
 
 import com.example.dbeventservice.auth.jwt.UserDetailsImpl;
+import com.example.dbeventservice.dto.ChatMessageDTO;
 import com.example.dbeventservice.dto.ChatRoomSummaryDTO;
-import com.example.dbeventservice.dto.CounterOfferRequest;
-import com.example.dbeventservice.dto.MessageDTO;
+import com.example.dbeventservice.dto.UpdateRoomRequest;
 import com.example.dbeventservice.model.ChatRoom;
-import com.example.dbeventservice.model.Message;
+import com.example.dbeventservice.model.User;
+import com.example.dbeventservice.model.Enum.ChatType;
+import com.example.dbeventservice.repositories.ChatRoomRepository;
+import com.example.dbeventservice.repositories.UserRepository;
 import com.example.dbeventservice.service.ChatService;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
-import lombok.Setter;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
-import org.springframework.http.HttpStatus;
+import com.example.dbeventservice.service.CloudinaryStorageService;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @RestController
-@RequestMapping("/chat")
+@RequestMapping("/api/chat")
 public class ChatController {
 
-    @Autowired
-    private ChatService chatService;
+    private final ChatService chatService;
+    private final ChatRoomRepository roomRepo;
+    private final UserRepository userRepo;
+    private final CloudinaryStorageService storage;
 
-    @PostMapping("/start")
-    public ResponseEntity<?> startChat(
-            @AuthenticationPrincipal UserDetailsImpl userDetails,
-            @RequestBody StartChatRequest request) {
-        if (request.getResalePostId() == null) {
-            return ResponseEntity.badRequest().body(Map.of("error", "resalePostId is required"));
-        }
-        try {
-            ChatRoom room = chatService.createOrGetChatRoom(request.getResalePostId(), userDetails.getId());
-            return ResponseEntity.ok(Map.of("id", room.getId()));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+    public ChatController(ChatService chatService,
+                          ChatRoomRepository roomRepo,
+                          UserRepository userRepo,
+                          CloudinaryStorageService storage) {
+        this.chatService = chatService;
+        this.roomRepo = roomRepo;
+        this.userRepo = userRepo;
+        this.storage = storage;
     }
 
-
-
-    @PostMapping("/start-with-admin")
-    public ResponseEntity<?> startAdminChat(@AuthenticationPrincipal UserDetailsImpl userDetails) {
-        try {
-            Long userId = userDetails.getId();
-            ChatRoom room = chatService.createOrFetchAdminChat(userId);
-            return ResponseEntity.ok(Map.of("chatRoomId", room.getId())); // ✅ Proper JSON
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Failed to start chat with admin"));
-        }
+    private User me(UserDetailsImpl principal) {
+        return userRepo.findById(principal.getId()).orElseThrow();
     }
 
+    /* --------- ROOM LIST --------- */
 
-
-
-
-    @GetMapping("/my-rooms")
-    public ResponseEntity<List<ChatRoomSummaryDTO>> getUserChatRooms(@AuthenticationPrincipal UserDetailsImpl userDetails) {
-        return ResponseEntity.ok(chatService.getChatRoomSummaries(userDetails.getId()));
+    @GetMapping("/rooms/my")
+    public List<ChatRoomSummaryDTO> myRooms(@AuthenticationPrincipal UserDetailsImpl principal) {
+        return chatService.myRooms(me(principal));
     }
 
+    /* --------- START ROOMS --------- */
 
-    @PostMapping("/{chatRoomId}/send")
-    public ResponseEntity<MessageDTO> sendMessage(
-            @AuthenticationPrincipal UserDetailsImpl userDetails,
-            @PathVariable Long chatRoomId,
-            @RequestBody SendMessageRequest request) {
+    @PostMapping("/start-direct")
+    public ResponseEntity<?> startDirect(@AuthenticationPrincipal UserDetailsImpl principal,
+                                         @RequestParam Long eventId,
+                                         @RequestParam Long otherUserId) {
+        User a = me(principal);
+        User b = userRepo.findById(otherUserId).orElseThrow();
+        ChatRoom room = chatService.getOrCreateDirect(eventId, a, b);
+        return ResponseEntity.ok(Map.of("roomId", room.getId()));
+    }
 
-        Message message = chatService.sendMessage(chatRoomId, userDetails.getId(), request.content);
-        return ResponseEntity.ok(new MessageDTO(
-                message.getId(),
-                message.getSender().getId(),
-                message.getContent(),
-                message.getTimestamp(),
-                null,   // offerId
-                null,   // amount
-                null,
-                message.getSender().getUsername() // ✅ Correct way
+    @PostMapping("/start-resale")
+    public ResponseEntity<?> startResale(@AuthenticationPrincipal UserDetailsImpl principal,
+                                         @RequestParam Long resalePostId,
+                                         @RequestParam Long sellerId) {
+        User buyer = me(principal);
+        User seller = userRepo.findById(sellerId).orElseThrow();
+        ChatRoom room = chatService.getOrCreateResale(resalePostId, buyer, seller);
+        return ResponseEntity.ok(Map.of("roomId", room.getId()));
+    }
+
+    @PostMapping("/promoter-group")
+    public ResponseEntity<?> promoterGroup(@AuthenticationPrincipal UserDetailsImpl principal,
+                                           @RequestParam Long eventId,
+                                           @RequestBody List<Long> promoterUserIds) {
+        User owner = me(principal);
+        List<User> promoters = userRepo.findAllById(promoterUserIds);
+        ChatRoom room = chatService.getOrCreatePromoterGroup(eventId, owner, promoters);
+        return ResponseEntity.ok(Map.of("roomId", room.getId()));
+    }
+
+    /* --------- ROOM SETTINGS --------- */
+
+    @PutMapping("/rooms/{roomId}")
+    public ResponseEntity<?> updateRoom(@AuthenticationPrincipal UserDetailsImpl principal,
+                                        @PathVariable Long roomId,
+                                        @RequestBody UpdateRoomRequest body) {
+        ChatRoom room = roomRepo.findById(roomId).orElseThrow();
+        ChatRoom updated = chatService.updateRoomMeta(room, body.name, body.iconUrl, me(principal));
+        return ResponseEntity.ok(Map.of(
+                "id", updated.getId(),
+                "name", updated.getName(),
+                "iconUrl", updated.getIconUrl()
         ));
     }
 
+    /* --------- MESSAGES --------- */
 
-    @GetMapping("/{chatRoomId}/messages")
-    public ResponseEntity<List<MessageDTO>> getMessages(
-            @AuthenticationPrincipal UserDetailsImpl userDetails,
-            @PathVariable Long chatRoomId) {
-        List<MessageDTO> messages = chatService.getMessages(chatRoomId, userDetails.getId());
-        return ResponseEntity.ok(messages);
+    @GetMapping("/rooms/{roomId}/messages")
+    public List<ChatMessageDTO> getMessages(@AuthenticationPrincipal UserDetailsImpl principal,
+                                            @PathVariable Long roomId,
+                                            @RequestParam(required = false) Integer limit,
+                                            @RequestParam(required = false) Long beforeId) {
+        ChatRoom room = roomRepo.findById(roomId).orElseThrow();
+        return chatService.getMessages(room, limit, beforeId);
     }
 
-    @GetMapping("/my")
-    public ResponseEntity<List<ChatRoomSummaryDTO>> getMyChats(@AuthenticationPrincipal UserDetailsImpl userDetails) {
-        List<ChatRoomSummaryDTO> chats = chatService.getChatRoomSummaries(userDetails.getId());
-        return ResponseEntity.ok(chats);
+    @PostMapping("/rooms/{roomId}/messages/text")
+    public ResponseEntity<?> sendText(@AuthenticationPrincipal UserDetailsImpl principal,
+                                      @PathVariable Long roomId,
+                                      @RequestParam String text) {
+        ChatRoom room = roomRepo.findById(roomId).orElseThrow();
+        var msg = chatService.sendText(room, me(principal), text, null);
+        return ResponseEntity.ok(msg.getId());
     }
+
+    @PostMapping(value = "/rooms/{roomId}/messages/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> sendImage(@AuthenticationPrincipal UserDetailsImpl principal,
+                                       @PathVariable Long roomId,
+                                       @RequestPart("file") MultipartFile file,
+                                       @RequestPart(value = "caption", required = false) String caption) {
+        ChatRoom room = roomRepo.findById(roomId).orElseThrow();
+        String url = storage.uploadChatImage(file, roomId, me(principal).getId());
+        var msg = chatService.sendImage(room, me(principal), url, caption);
+        return ResponseEntity.ok(Map.of("messageId", msg.getId(), "url", url));
+    }
+
+    @PostMapping("/rooms/{roomId}/read")
+    public ResponseEntity<?> markRead(@AuthenticationPrincipal UserDetailsImpl principal,
+                                      @PathVariable Long roomId) {
+        ChatRoom room = roomRepo.findById(roomId).orElseThrow();
+        chatService.markRead(room, me(principal));
+        return ResponseEntity.ok().build();
+    }
+
+    /* --------- GLOBAL UNREAD --------- */
 
     @GetMapping("/unread-count")
-    public ResponseEntity<?> getUnreadCount(@AuthenticationPrincipal UserDetailsImpl userDetails) {
-        int count = chatService.getUnreadMessageCount(userDetails.getId());
-        return ResponseEntity.ok(Map.of("unread", count));
-    }
-
-    @GetMapping("/image/{filename:.+}")
-    public ResponseEntity<Resource> getChatImage(
-            @PathVariable String filename,
-            @AuthenticationPrincipal UserDetailsImpl userDetails
-    ) {
-        try {
-            // ✅ Validate that the user is in a chat that references this image
-            if (!chatService.userCanAccessImage(userDetails.getId(), filename)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-            }
-
-            Path imagePath = Paths.get("chat-images").resolve(filename).normalize();
-            Resource resource = new UrlResource(imagePath.toUri());
-
-            if (!resource.exists()) {
-                return ResponseEntity.notFound().build();
-            }
-
-            return ResponseEntity.ok()
-                    .contentType(MediaType.IMAGE_JPEG)
-                    .body(resource);
-
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    @PostMapping("/start-direct")
-    public ResponseEntity<Map<String, Long>> startDirectChat(
-            @AuthenticationPrincipal UserDetailsImpl user,
-            @RequestBody Map<String, Long> request) {
-        Long eventId = request.get("eventId");
-        ChatRoom room = chatService.createOrFetchDirectChat(user.getId(), eventId);
-        return ResponseEntity.ok(Map.of("id", room.getId()));
-    }
-
-    // AFTER
-    @GetMapping("/promoter-group/{eventId}")
-    public ResponseEntity<Map<String, Long>> getPromoterGroupChat(
-            @AuthenticationPrincipal UserDetailsImpl user,
-            @PathVariable Long eventId) {
-        ChatRoom room = chatService.createOrFetchPromoterGroupChat(user.getId(), eventId);
-        return ResponseEntity.ok(Map.of("id", room.getId()));
-    }
-
-
-
-
-    @PostMapping("/{chatRoomId}/counteroffer")
-    public ResponseEntity<?> createCounterOffer(
-            @AuthenticationPrincipal UserDetailsImpl userDetails,
-            @PathVariable Long chatRoomId,
-            @RequestBody CounterOfferRequest request
-    ) {
-        try {
-            // ✅ PREVENT duplicate offers: only allow one pending per sender in this chat
-            boolean alreadyPending = chatService.hasPendingOffer(chatRoomId, userDetails.getId());
-            if (alreadyPending) {
-                return ResponseEntity.status(HttpStatus.CONFLICT).body(
-                        Map.of("error", "You already have a pending counteroffer.")
-                );
-            }
-
-            var offer = chatService.createCounterOffer(chatRoomId, userDetails.getId(), request.getAmount());
-
-            // Optional: Also create a message
-            chatService.sendMessage(chatRoomId, userDetails.getId(), "Counteroffer: $" + String.format("%.2f", request.getAmount()));
-
-            return ResponseEntity.ok(Map.of(
-                    "offerId", offer.getId(),
-                    "status", offer.getStatus(),
-                    "amount", offer.getAmount()
-            ));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
-    }
-
-    @PostMapping("/upload")
-    public ResponseEntity<String> uploadChatImage(
-            @AuthenticationPrincipal UserDetailsImpl userDetails,
-            @RequestParam("file") MultipartFile file
-    ) {
-        try {
-            String filename = chatService.saveChatImage(file);
-            return ResponseEntity.ok(filename);
-        } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Upload failed");
-        }
-    }
-
-    @PostMapping("/counteroffer/{offerId}/accept")
-    public ResponseEntity<?> acceptCounterOffer(
-            @AuthenticationPrincipal UserDetailsImpl userDetails,
-            @PathVariable Long offerId
-    ) {
-        try {
-            chatService.acceptCounterOffer(offerId, userDetails.getId());
-            return ResponseEntity.ok(Map.of("message", "Counteroffer accepted"));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
-        }
-    }
-
-    @PostMapping("/counteroffer/{offerId}/decline")
-    public ResponseEntity<?> declineCounterOffer(
-            @AuthenticationPrincipal UserDetailsImpl userDetails,
-            @PathVariable Long offerId
-    ) {
-        try {
-            chatService.declineCounterOffer(offerId, userDetails.getId());
-            return ResponseEntity.ok(Map.of("message", "Counteroffer declined"));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
-        }
-    }
-
-
-    // ✅ Seller accepts buyer
-    @PostMapping("/{chatRoomId}/accept")
-    public ResponseEntity<?> acceptBuyer(@PathVariable Long chatRoomId) {
-        chatService.acceptBuyer(chatRoomId);
-        return ResponseEntity.ok("Buyer accepted");
-    }
-
-    // DTOs
-    @Getter
-    @Setter
-    static class StartChatRequest {
-        @NotNull
-        public Long resalePostId;
-    }
-
-    @Getter
-    @Setter
-    static class SendMessageRequest {
-        @NotBlank
-        public String content;
+    public Map<String, Object> unreadCount(@AuthenticationPrincipal UserDetailsImpl principal) {
+        var list = chatService.myRooms(me(principal));
+        long total = list.stream().mapToLong(x -> x.unreadCount).sum();
+        return Map.of("total", total);
     }
 }
