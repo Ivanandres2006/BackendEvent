@@ -27,18 +27,22 @@ public class ChatService {
     private final ChatMessageRepository msgRepo;
     private final UserRepository userRepo;
     private final SimpMessagingTemplate broker;
+    private final NotificationService notificationService;
 
     public ChatService(ChatRoomRepository roomRepo,
                        ChatMemberRepository memberRepo,
                        ChatMessageRepository msgRepo,
                        UserRepository userRepo,
-                       SimpMessagingTemplate broker) {
+                       SimpMessagingTemplate broker,
+                       NotificationService notificationService) {
         this.roomRepo = roomRepo;
         this.memberRepo = memberRepo;
         this.msgRepo = msgRepo;
         this.userRepo = userRepo;
         this.broker = broker;
+        this.notificationService = notificationService;
     }
+
 
     /* ====================== CREATE / GET ROOMS ====================== */
 
@@ -144,6 +148,7 @@ public class ChatService {
         ChatMessage saved = msgRepo.save(m);
         touchRoom(room, saved.getCreatedAt());
         publish(saved);
+        notifyRoomMembers(room, saved);
         return saved;
     }
 
@@ -160,6 +165,7 @@ public class ChatService {
         ChatMessage saved = msgRepo.save(m);
         touchRoom(room, saved.getCreatedAt());
         publish(saved);
+        notifyRoomMembers(room, saved);
         return saved;
     }
 
@@ -278,4 +284,26 @@ public class ChatService {
             case SYSTEM -> m.getText() != null ? m.getText() : "[system]";
         };
     }
+
+    private void notifyRoomMembers(ChatRoom room, ChatMessage msg) {
+        // find all members except sender
+        List<ChatMember> members = memberRepo.findByChat(room);
+        for (ChatMember cm : members) {
+            User recipient = cm.getUser();
+            if (!Objects.equals(recipient.getId(), msg.getSender().getId())) {
+                String title = "💬 New message";
+                String body  = msg.getSender().getUsername() + ": " +
+                        (msg.getType() == MessageType.TEXT ? msg.getText() : "[image]");
+
+                Map<String,String> data = new HashMap<>();
+                data.put("type", "CHAT");
+                data.put("chatId", String.valueOf(room.getId()));
+                data.put("senderId", String.valueOf(msg.getSender().getId()));
+                data.put("senderUsername", msg.getSender().getUsername());
+
+                notificationService.sendPushToUsernameWithData(recipient.getUsername(), title, body, data);
+            }
+        }
+    }
+
 }
