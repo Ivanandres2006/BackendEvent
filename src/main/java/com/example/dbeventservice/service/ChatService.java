@@ -16,6 +16,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.example.dbeventservice.repositories.ResalePostRepository;   // ← add
+import com.example.dbeventservice.model.ResalePost;                     // ← add
+
 
 
 import java.time.Instant;
@@ -34,18 +37,23 @@ public class ChatService {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
+    private final ResalePostRepository resalePostRepo;   // ← add
+
+
     public ChatService(ChatRoomRepository roomRepo,
                        ChatMemberRepository memberRepo,
                        ChatMessageRepository msgRepo,
                        UserRepository userRepo,
                        SimpMessagingTemplate broker,
-                       NotificationService notificationService) {
+                       NotificationService notificationService,
+                       ResalePostRepository resalePostRepo) {
         this.roomRepo = roomRepo;
         this.memberRepo = memberRepo;
         this.msgRepo = msgRepo;
         this.userRepo = userRepo;
         this.broker = broker;
         this.notificationService = notificationService;
+        this.resalePostRepo = resalePostRepo;
     }
 
 
@@ -305,6 +313,32 @@ public class ChatService {
             throw new RuntimeException("Failed to serialize offer status", e);
         }
         msgRepo.save(offer);
+
+        if ("ACCEPTED".equals(newStatus)
+                && room.getType() == ChatType.RESALE
+                && room.getResalePostId() != null) {
+
+            // Pull accepted amount from the offer meta
+            Double amount = null;
+            Object a = map.get("amount");
+            if (a instanceof Number n) {
+                amount = n.doubleValue();
+            } else if (a instanceof String s) {
+                try { amount = Double.valueOf(s); } catch (NumberFormatException ignored) {}
+            }
+
+            if (amount != null) {
+                Double finalAmount = amount;
+                resalePostRepo.findById(room.getResalePostId()).ifPresent(post -> {
+                    var seller = post.getSeller();
+                    // Only the seller can lock the price
+                    if (seller != null && Objects.equals(seller.getId(), actor.getId())) {
+                        post.setPrice(finalAmount);
+                        resalePostRepo.save(post);
+                    }
+                });
+            }
+        }
 
         ChatMessage sys = new ChatMessage();
         sys.setChat(room);
