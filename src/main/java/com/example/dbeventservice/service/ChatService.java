@@ -103,17 +103,44 @@ public class ChatService {
 
         boolean dirty = false;
         if (eventTitle != null && !eventTitle.isBlank() && !eventTitle.equals(r.getName())) {
-            r.setName(eventTitle.trim());           // <-- name = event title
+            r.setName(eventTitle.trim());
             dirty = true;
         }
         if (eventIconUrl != null && !eventIconUrl.isBlank() && !Objects.equals(eventIconUrl, r.getIconUrl())) {
-            r.setIconUrl(eventIconUrl.trim());      // optional: show event cover
+            r.setIconUrl(eventIconUrl.trim());
             dirty = true;
         }
         if (dirty) r = roomRepo.save(r);
 
-        addMember(r, owner, ChatMemberRole.OWNER);
-        for (User p : promoters) addMember(r, p, ChatMemberRole.MEMBER);
+        // Track who got added right now (idempotent)
+        List<String> newlyAddedUsernames = new ArrayList<>();
+
+        if (memberRepo.findByChatAndUser(r, owner).isEmpty()) {
+            addMember(r, owner, ChatMemberRole.OWNER);
+            // Usually skip notifying the owner about themselves; toggle if you want:
+            // newlyAddedUsernames.add(owner.getUsername());
+        }
+        for (User p : promoters) {
+            if (memberRepo.findByChatAndUser(r, p).isEmpty()) {
+                addMember(r, p, ChatMemberRole.MEMBER);
+                if (p.getUsername() != null) newlyAddedUsernames.add(p.getUsername());
+            }
+        }
+
+        // 🔔 Notify only the newly added users
+        if (!newlyAddedUsernames.isEmpty()) {
+            String title = "👥 Promoter group";
+            String body  = "You were added to " + (eventTitle != null ? ("\"" + eventTitle + "\"") : "an event") + " promoter chat";
+
+            Map<String,String> data = new HashMap<>();
+            data.put("type", "CHAT");                    // iOS can branch on this
+            data.put("kind", "PROMOTER_GROUP_JOIN");
+            data.put("chatId", String.valueOf(r.getId()));
+            data.put("eventId", String.valueOf(eventId));
+
+            notificationService.sendPushToUsernamesWithData(newlyAddedUsernames, title, body, data);
+        }
+
         return r;
     }
 

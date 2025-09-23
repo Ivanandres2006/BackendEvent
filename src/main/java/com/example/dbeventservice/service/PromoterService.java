@@ -18,9 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class PromoterService {
@@ -68,16 +66,47 @@ public class PromoterService {
         // ensure promoter (also ensures referralCode)
         Promoter promoter = ensurePromoter(user);
 
-        return promoterEventRepository.findByPromoterAndEvent(promoter, event)
+        PromoterEvent pe = promoterEventRepository.findByPromoterAndEvent(promoter, event)
                 .orElseGet(() -> {
-                    PromoterEvent pe = new PromoterEvent();
-                    pe.setPromoter(promoter);
-                    pe.setEvent(event);
-                    pe.setTicketsSold(0);
-                    pe.setGrossRevenue(java.math.BigDecimal.ZERO);
-                    // default 10% already set in entity; ensure not null if your file differs
-                    return promoterEventRepository.save(pe);
+                    PromoterEvent created = new PromoterEvent();
+                    created.setPromoter(promoter);
+                    created.setEvent(event);
+                    created.setTicketsSold(0);
+                    created.setGrossRevenue(java.math.BigDecimal.ZERO);
+                    created.setCommissionEarned(java.math.BigDecimal.ZERO);
+                    created.setCommissionEnabled(false);
+                    created.setCommissionActivatedAt(null);
+                    return promoterEventRepository.save(created);
                 });
+
+        // 🔔 Push: assigned as promoter
+        if (user.getUsername() != null) {
+            Map<String,String> data = new HashMap<>();
+            data.put("type", "PROMOTER");
+            data.put("kind", "ASSIGNED");
+            data.put("eventId", String.valueOf(eventId));
+
+            notificationService.sendPushToUsernameWithData(
+                    user.getUsername(),
+                    "🎉 You’re a promoter!",
+                    "You’ve been assigned for \"" + event.getTitle() + "\"",
+                    data
+            );
+        }
+
+        // ✅ Ensure they’re in the promoter group (idempotent)
+        try {
+            chatService.getOrCreatePromoterGroup(
+                    eventId,
+                    event.getCreatedBy(),
+                    List.of(user),
+                    event.getTitle(),
+                    event.getImageUrl()
+            );
+            // If they weren't in, the call above will also send the “Promoter group” push.
+        } catch (Exception ignore) {}
+
+        return pe;
     }
 
     /**
