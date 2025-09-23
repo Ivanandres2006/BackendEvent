@@ -13,6 +13,8 @@ import com.example.dbeventservice.repositories.EventRepository;
 import com.example.dbeventservice.repositories.UserRepository;
 import com.example.dbeventservice.service.ChatService;
 import com.example.dbeventservice.service.CloudinaryStorageService;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -155,5 +157,43 @@ public class ChatController {
         var list = chatService.myRooms(me(principal));
         long total = list.stream().mapToLong(x -> x.unreadCount).sum();
         return Map.of("total", total);
+    }
+
+    @PostMapping("/rooms/{roomId}/offer")
+    public ResponseEntity<?> makeOffer(@AuthenticationPrincipal UserDetailsImpl principal,  // <-- rename
+                                       @PathVariable Long roomId,
+                                       @RequestBody OfferReq req) throws Exception {
+        var room = roomRepo.findById(roomId).orElseThrow();
+        var user = userRepo.findById(principal.getId()).orElseThrow(); // <-- use principal
+        var msg = chatService.sendOffer(room, user, req.amount, req.currency, req.parentId);
+        return ResponseEntity.ok(Map.of("messageId", msg.getId()));
+    }
+
+    @PatchMapping("/rooms/{roomId}/offer/{messageId}/accept")
+    public ResponseEntity<?> accept(@AuthenticationPrincipal UserDetailsImpl principal,    // <-- rename
+                                    @PathVariable Long roomId,
+                                    @PathVariable Long messageId) throws Exception {
+        var room = roomRepo.findById(roomId).orElseThrow();
+        var user = userRepo.findById(principal.getId()).orElseThrow(); // <-- use principal
+        chatService.setOfferStatus(room, user, messageId, "ACCEPTED");
+        return ResponseEntity.ok(Map.of("ok", true));
+    }
+
+    @PatchMapping("/rooms/{roomId}/offer/{messageId}/decline")
+    public ResponseEntity<?> decline(@AuthenticationPrincipal UserDetailsImpl principal,   // <-- rename
+                                     @PathVariable Long roomId,
+                                     @PathVariable Long messageId) throws Exception {
+        var room = roomRepo.findById(roomId).orElseThrow();
+        var user = userRepo.findById(principal.getId()).orElseThrow(); // <-- use principal
+        chatService.setOfferStatus(room, user, messageId, "DECLINED");
+        return ResponseEntity.ok(Map.of("ok", true));
+    }
+
+    @Getter
+    @Setter
+    public static class OfferReq {
+        public double amount;
+        public String currency = "USD";
+        public Long parentId; // optional
     }
 }

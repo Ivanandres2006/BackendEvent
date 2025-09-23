@@ -14,6 +14,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+
 
 import java.time.Instant;
 import java.util.*;
@@ -28,6 +31,8 @@ public class ChatService {
     private final UserRepository userRepo;
     private final SimpMessagingTemplate broker;
     private final NotificationService notificationService;
+
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     public ChatService(ChatRoomRepository roomRepo,
                        ChatMemberRepository memberRepo,
@@ -205,6 +210,129 @@ public class ChatService {
         publish(saved);
         notifyRoomMembers(room, saved);
         return saved;
+    }
+
+    // ChatService.java (add near sendText/sendImage)
+
+    @Transactional
+    public ChatMessage sendOffer(ChatRoom room, User sender, double amount, String currency, Long parentOfferId) {
+        ensureMember(room, sender);
+
+        String cur = (currency == null || currency.isBlank()) ? "USD" : currency.toUpperCase(); // <-- add
+
+        var payload = new java.util.HashMap<String,Object>();
+        payload.put("kind", "OFFER");
+        payload.put("amount", amount);
+        payload.put("currency", cur);                  // <-- use cur
+        payload.put("authorId", sender.getId());
+        payload.put("status", "PENDING");
+        payload.put("parentId", parentOfferId == null ? 0L : parentOfferId);
+
+        ChatMessage m = new ChatMessage();
+        m.setChat(room);
+        m.setSender(sender);
+        m.setType(MessageType.OFFER);
+        try {
+            m.setMetaJson(JSON.writeValueAsString(payload));
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize offer payload", e);
+        }
+        m.setCreatedAt(Instant.now());
+
+        ChatMessage saved = msgRepo.save(m);
+        touchRoom(room, saved.getCreatedAt());
+        publish(saved);
+
+        var otherUsernames = memberRepo.findByChat(room).stream()
+                .map(ChatMember::getUser)
+                .filter(u -> !Objects.equals(u.getId(), sender.getId()))
+                .map(User::getUsername)
+                .toList();
+
+        Map<String,String> data = new HashMap<>();
+        data.put("type","CHAT");
+        data.put("chatId", String.valueOf(room.getId()));
+        data.put("offerMessageId", String.valueOf(saved.getId()));
+        data.put("amount", String.valueOf(amount));
+        data.put("currency", cur);                     // <-- use cur
+
+        notificationService.sendPushToUsernamesWithData(
+                otherUsernames,
+                "💸 New offer",
+                sender.getUsername() + " offered " + cur + " " + amount,   // <-- use cur
+                data
+        );
+
+        return saved;
+    }
+
+    @Transactional
+    public ChatMessage setOfferStatus(ChatRoom room, User actor, Long offerMessageId, String newStatus) {
+        ensureMember(room, actor);
+
+        ChatMessage offer = msgRepo.findById(offerMessageId)
+                .orElseThrow(() -> new IllegalArgumentException("Offer not found"));
+        if (!Objects.equals(offer.getChat().getId(), room.getId())) throw new IllegalArgumentException("Wrong room");
+        if (offer.getType() != MessageType.OFFER) throw new IllegalArgumentException("Not an offer");
+
+        // ✅ Only ACCEPTED or DECLINED
+        if (!"ACCEPTED".equals(newStatus) && !"DECLINED".equals(newStatus)) {
+            throw new IllegalArgumentException("Invalid status");
+        }
+
+        // ✅ In RESALE chats, only the SELLER (not the buyer) may accept/decline
+        if (room.getType() == ChatType.RESALE) {
+            User buyer = room.getBuyer(); // may be null if your entity differs
+            if (buyer != null && Objects.equals(buyer.getId(), actor.getId())) {
+                throw new IllegalArgumentException("Only the seller can " + newStatus.toLowerCase());
+            }
+        }
+
+        Map<String, Object> map;
+        try {
+            map = JSON.readValue(
+                    Optional.ofNullable(offer.getMetaJson()).orElse("{}"),
+                    java.util.Map.class
+            );
+        } catch (Exception e) {
+            // If the stored JSON is bad, start fresh instead of failing the action.
+            map = new HashMap<>();
+        }
+        map.put("status", newStatus);
+        try {
+            offer.setMetaJson(JSON.writeValueAsString(map));
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize offer status", e);
+        }
+        msgRepo.save(offer);
+
+        ChatMessage sys = new ChatMessage();
+        sys.setChat(room);
+        sys.setType(MessageType.SYSTEM);
+        sys.setText("Offer " + newStatus.toLowerCase());
+        sys.setCreatedAt(Instant.now());
+        msgRepo.save(sys);
+
+        touchRoom(room, sys.getCreatedAt());
+        publish(offer);
+        publish(sys);
+
+        User sender = offer.getSender();
+        if (sender != null && !Objects.equals(sender.getId(), actor.getId())) {
+            Map<String,String> data = new HashMap<>();
+            data.put("type","CHAT");
+            data.put("chatId", String.valueOf(room.getId()));
+            data.put("offerMessageId", String.valueOf(offerMessageId));
+            data.put("status", newStatus);
+            notificationService.sendPushToUsernameWithData(
+                    sender.getUsername(),
+                    "ACCEPTED".equals(newStatus) ? "✅ Offer accepted" : "✋ Offer declined",
+                    actor.getUsername() + " " + newStatus.toLowerCase() + " your offer",
+                    data
+            );
+        }
+
+        return offer;
     }
 
     @Transactional
