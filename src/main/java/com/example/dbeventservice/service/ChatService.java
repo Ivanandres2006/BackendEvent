@@ -88,22 +88,33 @@ public class ChatService {
     }
 
     @Transactional
-    public ChatRoom getOrCreatePromoterGroup(Long eventId, User owner, List<User> promoters) {
+    public ChatRoom getOrCreatePromoterGroup(Long eventId, User owner, List<User> promoters,
+                                             String eventTitle, String eventIconUrl) {
         Optional<ChatRoom> existing = roomRepo.findByTypeAndEventId(ChatType.PROMOTER_GROUP, eventId);
-        if (existing.isPresent()) return existing.get();
+        ChatRoom r = existing.orElseGet(() -> {
+            ChatRoom x = new ChatRoom();
+            x.setType(ChatType.PROMOTER_GROUP);
+            x.setEventId(eventId);
+            x.setCreatedBy(owner);
+            x.setCreatedAt(Instant.now());
+            x.setUpdatedAt(Instant.now());
+            return roomRepo.save(x);
+        });
 
-        ChatRoom r = new ChatRoom();
-        r.setType(ChatType.PROMOTER_GROUP);
-        r.setEventId(eventId);
-        r.setName("Promoters"); // default; owner can rename
-        r.setCreatedBy(owner);
-        r.setCreatedAt(Instant.now());
-        r.setUpdatedAt(Instant.now());
-        ChatRoom saved = roomRepo.save(r);
+        boolean dirty = false;
+        if (eventTitle != null && !eventTitle.isBlank() && !eventTitle.equals(r.getName())) {
+            r.setName(eventTitle.trim());           // <-- name = event title
+            dirty = true;
+        }
+        if (eventIconUrl != null && !eventIconUrl.isBlank() && !Objects.equals(eventIconUrl, r.getIconUrl())) {
+            r.setIconUrl(eventIconUrl.trim());      // optional: show event cover
+            dirty = true;
+        }
+        if (dirty) r = roomRepo.save(r);
 
-        addMember(saved, owner, ChatMemberRole.OWNER);
-        for (User p : promoters) addMember(saved, p, ChatMemberRole.MEMBER);
-        return saved;
+        addMember(r, owner, ChatMemberRole.OWNER);
+        for (User p : promoters) addMember(r, p, ChatMemberRole.MEMBER);
+        return r;
     }
 
     @Transactional

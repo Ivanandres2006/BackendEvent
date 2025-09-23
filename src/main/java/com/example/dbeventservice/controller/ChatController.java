@@ -5,9 +5,11 @@ import com.example.dbeventservice.dto.ChatMessageDTO;
 import com.example.dbeventservice.dto.ChatRoomSummaryDTO;
 import com.example.dbeventservice.dto.UpdateRoomRequest;
 import com.example.dbeventservice.model.ChatRoom;
+import com.example.dbeventservice.model.Event;
 import com.example.dbeventservice.model.User;
 import com.example.dbeventservice.model.Enum.ChatType;
 import com.example.dbeventservice.repositories.ChatRoomRepository;
+import com.example.dbeventservice.repositories.EventRepository;
 import com.example.dbeventservice.repositories.UserRepository;
 import com.example.dbeventservice.service.ChatService;
 import com.example.dbeventservice.service.CloudinaryStorageService;
@@ -29,15 +31,19 @@ public class ChatController {
     private final ChatRoomRepository roomRepo;
     private final UserRepository userRepo;
     private final CloudinaryStorageService storage;
+    private final EventRepository eventRepo; // or EventService
+
 
     public ChatController(ChatService chatService,
                           ChatRoomRepository roomRepo,
                           UserRepository userRepo,
-                          CloudinaryStorageService storage) {
+                          CloudinaryStorageService storage,
+                          EventRepository eventRepo) {
         this.chatService = chatService;
         this.roomRepo = roomRepo;
         this.userRepo = userRepo;
         this.storage = storage;
+        this.eventRepo = eventRepo;
     }
 
     private User me(UserDetailsImpl principal) {
@@ -79,9 +85,14 @@ public class ChatController {
                                            @RequestBody List<Long> promoterUserIds) {
         User owner = me(principal);
         List<User> promoters = userRepo.findAllById(promoterUserIds);
-        ChatRoom room = chatService.getOrCreatePromoterGroup(eventId, owner, promoters);
-        return ResponseEntity.ok(Map.of("roomId", room.getId()));
+
+        Event ev = eventRepo.findById(eventId).orElseThrow(); // get title/icon
+        ChatRoom room = chatService.getOrCreatePromoterGroup(
+                eventId, owner, promoters, ev.getTitle(), ev.getImageUrl());
+
+        return ResponseEntity.ok(Map.of("id", room.getId())); // (id) decodes everywhere
     }
+
 
     /* --------- ROOM SETTINGS --------- */
 
