@@ -235,6 +235,9 @@ public class ChatService {
         payload.put("authorId", sender.getId());
         payload.put("status", "PENDING");
         payload.put("parentId", parentOfferId == null ? 0L : parentOfferId);
+        if (room.getType() == ChatType.RESALE && room.getResalePostId() != null) {
+            payload.put("resalePostId", room.getResalePostId());
+        }
 
         ChatMessage m = new ChatMessage();
         m.setChat(room);
