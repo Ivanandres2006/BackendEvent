@@ -42,6 +42,9 @@ public class ResalePaymentService {
     @Autowired private EmailService emailService;
     @Autowired private ChatMessageRepository chatMessageRepository;
 
+    @Autowired private ChatService chatService;
+
+
     // Be tolerant of old/new shapes & casing
     private final ObjectMapper objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
@@ -444,6 +447,7 @@ public class ResalePaymentService {
         return order.getId();
     }
 
+    // after a successful transfer in the offer path
     @Transactional
     public void confirmTransferForAcceptedOffer(Long messageId, Long buyerId) {
         OfferMeta meta = loadAcceptedOfferOrThrow(messageId);
@@ -451,6 +455,9 @@ public class ResalePaymentService {
             throw new IllegalStateException("Only the offer author can confirm this offer");
         }
         processPaymentAndTransferTicket(meta.resalePostId, buyerId);
+
+        // 👇 announce SOLD to the room & update the offer bubble
+        try { chatService.markOfferSold(messageId); } catch (Exception ignored) {}
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

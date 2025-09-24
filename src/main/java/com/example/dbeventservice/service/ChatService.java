@@ -10,6 +10,7 @@ import com.example.dbeventservice.repositories.ChatMemberRepository;
 import com.example.dbeventservice.repositories.ChatMessageRepository;
 import com.example.dbeventservice.repositories.ChatRoomRepository;
 import com.example.dbeventservice.repositories.UserRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -507,6 +508,41 @@ public class ChatService {
                 notificationService.sendPushToUsernameWithData(recipient.getUsername(), title, body, data);
             }
         }
+    }
+
+    @Transactional
+    public void markOfferSold(Long offerMessageId) {
+        ChatMessage offer = msgRepo.findById(offerMessageId)
+                .orElseThrow(() -> new IllegalArgumentException("Offer not found"));
+        if (offer.getType() != MessageType.OFFER) {
+            throw new IllegalArgumentException("Not an offer message");
+        }
+
+        Map<String,Object> map;
+        try {
+            String json = Optional.ofNullable(offer.getMetaJson()).orElse("{}");
+            map = JSON.readValue(json, new TypeReference<Map<String,Object>>() {});
+        } catch (Exception e) {
+            map = new HashMap<>();
+        }
+        map.put("status", "SOLD");
+        try {
+            offer.setMetaJson(JSON.writeValueAsString(map));
+        } catch (Exception ignored) {}
+
+        msgRepo.save(offer);
+
+        // optional: announce completion
+        ChatMessage sys = new ChatMessage();
+        sys.setChat(offer.getChat());
+        sys.setType(MessageType.SYSTEM);
+        sys.setText("Offer completed");
+        sys.setCreatedAt(Instant.now());
+        msgRepo.save(sys);
+
+        touchRoom(offer.getChat(), sys.getCreatedAt());
+        publish(offer); // updated payload for same id -> clients update bubble
+        publish(sys);   // nice little “Offer completed” row
     }
 
 }
