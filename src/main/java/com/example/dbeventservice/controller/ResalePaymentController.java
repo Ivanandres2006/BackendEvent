@@ -9,6 +9,7 @@ import com.example.dbeventservice.model.Enum.ResaleOrderStatus;
 import com.example.dbeventservice.model.ResaleOrder;
 import com.example.dbeventservice.model.Ticket;
 import com.example.dbeventservice.model.Enum.PaymentMethod;
+import com.example.dbeventservice.model.User;
 import com.example.dbeventservice.repositories.ResaleOrderRepository;
 import com.example.dbeventservice.repositories.ResalePostRepository;
 import com.example.dbeventservice.service.ResalePaymentService;
@@ -32,6 +33,53 @@ public class ResalePaymentController {
 
     @Autowired private ResalePostRepository resalePostRepository;
     @Autowired private ResaleOrderRepository resaleOrderRepository;
+
+    public ResalePaymentController(ResalePaymentService paymentService) {
+        this.resalePaymentService = paymentService;
+    }
+
+    // ---------- Stripe for accepted offer ----------
+    @PostMapping("/pay/offer/{messageId}")
+    public ResponseEntity<?> payAcceptedOffer(
+            @PathVariable Long messageId,
+            @AuthenticationPrincipal UserDetailsImpl me) {
+        try {
+            String clientSecret = resalePaymentService.createPaymentIntentForAcceptedOffer(messageId, me.getId());
+            return ResponseEntity.ok(Map.of("clientSecret", clientSecret));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "Payment error"));
+        }
+    }
+
+    public static record ManualOfferReq(String method, String reference) {}
+
+    @PostMapping("/manual/offer/{messageId}")
+    public ResponseEntity<?> manualAcceptedOffer(
+            @PathVariable Long messageId,
+            @RequestBody ManualOfferReq body,
+            @AuthenticationPrincipal UserDetailsImpl me) {
+        try {
+            Long orderId = resalePaymentService.createManualOrderForAcceptedOffer(
+                    messageId, me.getId(), body.method(), body.reference());
+            return ResponseEntity.ok(Map.of("orderId", orderId));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/confirm-transfer/offer/{messageId}")
+    public ResponseEntity<?> confirmTransferForAcceptedOffer(
+            @PathVariable Long messageId,
+            @AuthenticationPrincipal UserDetailsImpl me) {
+        try {
+            resalePaymentService.confirmTransferForAcceptedOffer(messageId, me.getId());
+            return ResponseEntity.ok(Map.of("status", "ok"));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
 
     // Card intent (existing)
     // ResalePaymentController.java

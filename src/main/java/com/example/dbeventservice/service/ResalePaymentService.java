@@ -7,6 +7,7 @@ import com.example.dbeventservice.model.Enum.PaymentMethod;
 import com.example.dbeventservice.model.Enum.ResaleOrderStatus;
 import com.example.dbeventservice.model.Enum.TicketStatus;
 import com.example.dbeventservice.repositories.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Customer;
@@ -36,6 +37,10 @@ public class ResalePaymentService {
     @Autowired private NotificationService notificationService;
     @Autowired private ResalePostRepository postRepo;
     @Autowired private EmailService emailService;
+    @Autowired private ChatMessageRepository chatMessageRepository;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
 
     @PostConstruct
     public void init() { Stripe.apiKey = stripeApiKey; }
@@ -324,5 +329,92 @@ public class ResalePaymentService {
         }
 
         return ticket;
+    }
+
+    // ---------- ACCEPTED OFFER FLOWS ----------
+    private OfferMeta loadAcceptedOfferOrThrow(Long messageId) {
+        ChatMessage m = chatMessageRepository.findById(messageId)
+                .orElseThrow(() -> new IllegalArgumentException("Offer message not found"));
+
+        if (m.getMetaJson() == null || m.getMetaJson().isBlank()) {
+            throw new IllegalStateException("Offer metadata missing");
+        }
+        OfferMeta meta;
+        try {
+            meta = objectMapper.readValue(m.getMetaJson(), OfferMeta.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("Invalid offer metadata");
+        }
+        if (meta.status == null || !"ACCEPTED".equalsIgnoreCase(meta.status)) {
+            throw new IllegalStateException("Offer is not ACCEPTED");
+        }
+        if (meta.amount == null || meta.amount <= 0) {
+            throw new IllegalStateException("Offer amount invalid");
+        }
+        if (meta.currency == null || meta.currency.isBlank()) meta.currency = "USD";
+        if (meta.resalePostId == null) {
+            throw new IllegalStateException("Offer missing resalePostId");
+        }
+        return meta;
+    }
+
+    @Transactional
+    public String createPaymentIntentForAcceptedOffer(Long messageId, Long buyerId) throws Exception {
+        OfferMeta meta = loadAcceptedOfferOrThrow(messageId);
+        if (meta.authorId == null || !meta.authorId.equals(buyerId)) {
+            throw new IllegalStateException("Only the offer author can pay this offer");
+        }
+        ResalePost post = resalePostRepository.findById(meta.resalePostId)
+                .orElseThrow(() -> new IllegalArgumentException("Resale post not found"));
+
+        assertEventNotPast(post);
+
+        long amountInMinor = Math.round(meta.amount * 100);
+
+        PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
+                .setAmount(amountInMinor)
+                .setCurrency(meta.currency.toLowerCase())
+                .putMetadata("resalePostId", String.valueOf(post.getId()))
+                .putMetadata("offerMessageId", String.valueOf(messageId))
+                .putMetadata("buyerId", String.valueOf(buyerId))
+                .setAutomaticPaymentMethods(
+                        PaymentIntentCreateParams.AutomaticPaymentMethods.builder().setEnabled(true).build()
+                )
+                .build();
+
+        PaymentIntent pi = PaymentIntent.create(params);
+        return pi.getClientSecret();
+    }
+
+    @Transactional
+    public Long createManualOrderForAcceptedOffer(Long messageId, Long buyerId, String method, String reference) {
+        OfferMeta meta = loadAcceptedOfferOrThrow(messageId);
+        if (meta.authorId == null || !meta.authorId.equals(buyerId)) {
+            throw new IllegalStateException("Only the offer author can pay this offer");
+        }
+        // Reuse existing validations & gating by calling your normal manual creator:
+        ResaleOrder order = createManualOrder(meta.resalePostId, buyerId, PaymentMethod.from(method), reference);
+        // Optionally tie the order to the offer message if you track that:
+        // order.setOfferMessageId(messageId);
+        // resaleOrderRepository.save(order);
+        return order.getId();
+    }
+
+    @Transactional
+    public void confirmTransferForAcceptedOffer(Long messageId, Long buyerId) {
+        OfferMeta meta = loadAcceptedOfferOrThrow(messageId);
+        if (meta.authorId == null || !meta.authorId.equals(buyerId)) {
+            throw new IllegalStateException("Only the offer author can confirm this offer");
+        }
+        processPaymentAndTransferTicket(meta.resalePostId, buyerId);
+    }
+
+    // Keep OfferMeta INSIDE the service class
+    private static final class OfferMeta {
+        public Double amount;
+        public String currency;
+        public String status;     // PENDING / ACCEPTED / DECLINED
+        public Long   authorId;   // offer author (buyer)
+        public Long   resalePostId;
     }
 }
