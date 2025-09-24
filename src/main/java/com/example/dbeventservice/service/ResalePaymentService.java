@@ -7,6 +7,9 @@ import com.example.dbeventservice.model.Enum.PaymentMethod;
 import com.example.dbeventservice.model.Enum.ResaleOrderStatus;
 import com.example.dbeventservice.model.Enum.TicketStatus;
 import com.example.dbeventservice.repositories.*;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
@@ -39,7 +42,10 @@ public class ResalePaymentService {
     @Autowired private EmailService emailService;
     @Autowired private ChatMessageRepository chatMessageRepository;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    // Be tolerant of old/new shapes & casing
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+            .configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true);
 
 
     @PostConstruct
@@ -336,25 +342,63 @@ public class ResalePaymentService {
         ChatMessage m = chatMessageRepository.findById(messageId)
                 .orElseThrow(() -> new IllegalArgumentException("Offer message not found"));
 
-        if (m.getMetaJson() == null || m.getMetaJson().isBlank()) {
+        String metaJson = Optional.ofNullable(m.getMetaJson()).orElse("").trim();
+        if (metaJson.isEmpty()) {
             throw new IllegalStateException("Offer metadata missing");
         }
+
         OfferMeta meta;
         try {
-            meta = objectMapper.readValue(m.getMetaJson(), OfferMeta.class);
-        } catch (Exception e) {
-            throw new IllegalStateException("Invalid offer metadata");
+            // tolerant mapper handles unknown fields + case
+            meta = objectMapper.readValue(metaJson, OfferMeta.class);
+        } catch (Exception first) {
+            // Fallback: parse as Map and pick known keys
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> map = objectMapper.readValue(metaJson, Map.class);
+                meta = new OfferMeta();
+
+                Object a = map.get("amount");
+                if (a instanceof Number n) meta.amount = n.doubleValue();
+                else if (a instanceof String s) meta.amount = Double.valueOf(s);
+
+                Object c = map.get("currency");
+                meta.currency = (c == null || c.toString().isBlank()) ? "USD" : c.toString();
+
+                Object s0 = map.get("status");
+                meta.status = (s0 == null) ? null : s0.toString();
+
+                Object auth = map.get("authorId");
+                if (auth instanceof Number n) meta.authorId = n.longValue();
+                else if (auth != null) meta.authorId = Long.valueOf(auth.toString());
+
+                Object rpid = map.get("resalePostId");
+                if (rpid instanceof Number n) meta.resalePostId = n.longValue();
+                else if (rpid != null) meta.resalePostId = Long.valueOf(rpid.toString());
+
+            } catch (Exception second) {
+                throw new IllegalStateException("Invalid offer metadata");
+            }
         }
-        if (meta.status == null || !"ACCEPTED".equalsIgnoreCase(meta.status)) {
-            throw new IllegalStateException("Offer is not ACCEPTED");
-        }
+
+        // Defaults/validations
+        if (meta.currency == null || meta.currency.isBlank()) meta.currency = "USD";
         if (meta.amount == null || meta.amount <= 0) {
             throw new IllegalStateException("Offer amount invalid");
         }
-        if (meta.currency == null || meta.currency.isBlank()) meta.currency = "USD";
+        if (meta.status == null || !meta.status.equalsIgnoreCase("ACCEPTED")) {
+            throw new IllegalStateException("Offer is not ACCEPTED");
+        }
+
+        // If old messages missed resalePostId, rescue it from the room itself
+        if (meta.resalePostId == null && m.getChat() != null) {
+            Long fromRoom = m.getChat().getResalePostId();
+            if (fromRoom != null) meta.resalePostId = fromRoom;
+        }
         if (meta.resalePostId == null) {
             throw new IllegalStateException("Offer missing resalePostId");
         }
+
         return meta;
     }
 
@@ -409,7 +453,7 @@ public class ResalePaymentService {
         processPaymentAndTransferTicket(meta.resalePostId, buyerId);
     }
 
-    // Keep OfferMeta INSIDE the service class
+    @JsonIgnoreProperties(ignoreUnknown = true)
     private static final class OfferMeta {
         public Double amount;
         public String currency;
@@ -417,4 +461,5 @@ public class ResalePaymentService {
         public Long   authorId;   // offer author (buyer)
         public Long   resalePostId;
     }
+
 }
