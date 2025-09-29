@@ -17,6 +17,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.Customizer;
 import org.springframework.web.cors.*;
+import org.springframework.http.HttpMethod;
+
 
 import java.util.List;
 
@@ -76,6 +78,7 @@ public class WebSecurityConfig {
                                 "/api/attendance/events/*/going",
                                 "/api/users/me/**"
                         ).permitAll()
+                        .requestMatchers(HttpMethod.GET, "/events/**").permitAll()
                         .requestMatchers("/auth/validate").authenticated()
                         .anyRequest().authenticated()
                 );
