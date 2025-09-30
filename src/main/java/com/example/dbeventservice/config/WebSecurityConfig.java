@@ -79,6 +79,7 @@ public class WebSecurityConfig {
                                 "/api/users/me/**"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/events/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/tickets/quote").permitAll()
                         .requestMatchers("/auth/validate").authenticated()
                         .anyRequest().authenticated()
                 );
