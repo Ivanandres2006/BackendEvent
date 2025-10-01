@@ -12,14 +12,11 @@ public class FxController {
 
     private final BcvRateService bcv;
 
-    public FxController(BcvRateService bcv) {
-        this.bcv = bcv;
-    }
+    public FxController(BcvRateService bcv) { this.bcv = bcv; }
 
     @GetMapping("/ves-per-usd")
     public ResponseEntity<?> vesPerUsd() {
         var opt = bcv.getVesPerUsd();
-
         double rate = opt.orElse(bcv.getFallbackRate());
         String source = opt.isPresent() ? bcv.getLastSource() : "fallback";
 

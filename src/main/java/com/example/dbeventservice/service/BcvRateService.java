@@ -17,7 +17,7 @@ public class BcvRateService {
     private static final String BCV_URL = "https://www.bcv.org.ve/";
     private static final Duration TTL = Duration.ofMinutes(30);
 
-    // Try to be tolerant with number formats like 179,43080000 or 179.43080000
+    // Tolerant pattern: accepts “USD 179,43080000” or similar
     private static final Pattern USD_PATTERN = Pattern.compile(
             "(?:USD|D[óo]lar\\s+estadounidense)\\s*([0-9][0-9\\.,]{2,})",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
@@ -28,7 +28,7 @@ public class BcvRateService {
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
-    // fallback is configurable, default to 179.2 if not provided
+    // Configurable fallback (default 179.2)
     private final double fallbackRate;
 
     private final AtomicReference<Double> lastGood = new AtomicReference<>(null);
@@ -39,60 +39,51 @@ public class BcvRateService {
         this.fallbackRate = fallbackRate;
     }
 
-    /**
-     * Best-effort fetch from BCV, with 30m caching. Returns Optional.empty()
-     * only if we had a fresh attempt and NO cache; controller will decide fallback.
-     */
+    /** Return fresh if possible; else cache; else empty (controller handles fallback). */
     public Optional<Double> getVesPerUsd() {
-        // serve from cache if still fresh
+        // Fresh cache
         Double cached = lastGood.get();
         if (cached != null && Duration.between(fetchedAt, Instant.now()).compareTo(TTL) < 0) {
             lastSource = "cache";
             return Optional.of(cached);
         }
 
+        // Try BCV
         try {
             var req = HttpRequest.newBuilder(URI.create(BCV_URL))
                     .header("User-Agent", "WKND-FX/1.0")
                     .GET()
                     .build();
-            var res = http.send(req, HttpResponse.BodyHandlers.ofString());
 
+            var res = http.send(req, HttpResponse.BodyHandlers.ofString());
             if (res.statusCode() >= 200 && res.statusCode() < 300) {
                 Matcher m = USD_PATTERN.matcher(res.body());
                 if (m.find()) {
-                    String raw = m.group(1).trim();        // e.g. 179,43080000
-                    String normalized = raw.replace(".", "").replace(",", "."); // 17943080000 -> wrong, so only remove thousand separators:
-                    // safer: remove thousands by keeping only the last '.' as decimal
-                    // but BCV typically uses comma decimals; the above works for their page.
+                    // Typical BCV uses comma for decimals; remove thousand separators
+                    String raw = m.group(1).trim();               // e.g. 179,43080000
+                    String normalized = raw.replace(".", "")      // remove thousand dots
+                            .replace(",", ".");     // use dot as decimal
                     double rate = Double.parseDouble(normalized);
+
                     lastGood.set(rate);
                     fetchedAt = Instant.now();
                     lastSource = "bcv";
                     return Optional.of(rate);
                 }
             }
-        } catch (Exception ignored) { /* network / TLS hiccups */ }
+        } catch (Exception ignored) { }
 
-        // If we had a previous good value, return it (stale is better than failing)
+        // Stale cache still better than nothing
         if (lastGood.get() != null) {
             lastSource = "cache";
             return Optional.of(lastGood.get());
         }
 
-        // No cache; let controller decide the final fallback
+        // Controller will use fallback
         return Optional.empty();
     }
 
-    public double getFallbackRate() {
-        return fallbackRate;
-    }
-
-    public Instant getFetchedAt() {
-        return fetchedAt.equals(Instant.EPOCH) ? Instant.now() : fetchedAt;
-    }
-
-    public String getLastSource() {
-        return lastSource;
-    }
+    public double getFallbackRate() { return fallbackRate; }
+    public Instant getFetchedAt() { return fetchedAt.equals(Instant.EPOCH) ? Instant.now() : fetchedAt; }
+    public String getLastSource() { return lastSource; }
 }
