@@ -12,20 +12,23 @@ public class FxController {
 
     private final BcvRateService bcv;
 
-    public FxController(BcvRateService bcv) { this.bcv = bcv; }
+    public FxController(BcvRateService bcv) {
+        this.bcv = bcv;
+    }
 
     @GetMapping("/ves-per-usd")
     public ResponseEntity<?> vesPerUsd() {
-        var opt = bcv.getVesPerUsd();
-        double rate = opt.orElse(bcv.getFallbackRate());
-        String source = opt.isPresent() ? bcv.getLastSource() : "fallback";
-
-        return ResponseEntity.ok(
-                Map.of(
-                        "source", source,
-                        "vesPerUsd", rate,
-                        "fetchedAt", bcv.getFetchedAt().toString()
-                )
-        );
+        return bcv.getVesPerUsd()
+                .<ResponseEntity<?>>map(rate -> ResponseEntity.ok(
+                        Map.of(
+                                "source", bcv.getLastSource(),
+                                "vesPerUsd", rate,
+                                "fetchedAt", bcv.getFetchedAt().toString(),
+                                "fallback", bcv.getFallbackRate()
+                        )
+                ))
+                .orElseGet(() -> ResponseEntity.status(503).body(
+                        Map.of("error", "bcv_unavailable")
+                ));
     }
 }
