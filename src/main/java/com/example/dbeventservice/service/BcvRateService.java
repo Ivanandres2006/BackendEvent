@@ -13,77 +13,51 @@ import java.util.regex.Pattern;
 
 @Service
 public class BcvRateService {
-
-    private static final String BCV_URL = "https://www.bcv.org.ve/";
+    // BCV sometimes caches aggressively—add a cache-buster.
+    private static final String BCV_URL = "https://www.bcv.org.ve/?t=";
     private static final Duration TTL = Duration.ofMinutes(30);
 
-    // Tolerant pattern: accepts “USD 179,43080000” or similar
-    private static final Pattern USD_PATTERN = Pattern.compile(
-            "(?:USD|D[óo]lar\\s+estadounidense)\\s*([0-9][0-9\\.,]{2,})",
-            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
-    );
-
     private final HttpClient http = HttpClient.newBuilder()
-            .followRedirects(HttpClient.Redirect.NORMAL)
             .connectTimeout(Duration.ofSeconds(10))
+            .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
 
-    // Configurable fallback (default 179.2)
-    private final double fallbackRate;
+    // Matches “… USD 179,43080000” with or without extra spaces/newlines
+    private static final Pattern USD_PATTERN = Pattern.compile(
+            "USD\\s*([0-9\\.,]+)", Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+    );
 
-    private final AtomicReference<Double> lastGood = new AtomicReference<>(null);
+    private final AtomicReference<Double> cache = new AtomicReference<>(null);
     private volatile Instant fetchedAt = Instant.EPOCH;
-    private volatile String lastSource = "none"; // "bcv" | "cache" | "fallback"
 
-    public BcvRateService(@Value("${fx.vesPerUsd.fallback:179.2}") double fallbackRate) {
-        this.fallbackRate = fallbackRate;
-    }
-
-    /** Return fresh if possible; else cache; else empty (controller handles fallback). */
     public Optional<Double> getVesPerUsd() {
-        // Fresh cache
-        Double cached = lastGood.get();
-        if (cached != null && Duration.between(fetchedAt, Instant.now()).compareTo(TTL) < 0) {
-            lastSource = "cache";
-            return Optional.of(cached);
+        if (cache.get() != null && Duration.between(fetchedAt, Instant.now()).compareTo(TTL) < 0) {
+            return Optional.of(cache.get());
         }
-
-        // Try BCV
         try {
-            var req = HttpRequest.newBuilder(URI.create(BCV_URL))
+            var req = HttpRequest.newBuilder(URI.create(BCV_URL + System.currentTimeMillis()))
                     .header("User-Agent", "WKND-FX/1.0")
+                    .header("Accept", "text/html,application/xhtml+xml")
+                    .header("Accept-Language", "es-VE,es;q=0.9,en;q=0.8")
+                    .header("Cache-Control", "no-cache")
                     .GET()
                     .build();
 
             var res = http.send(req, HttpResponse.BodyHandlers.ofString());
-            if (res.statusCode() >= 200 && res.statusCode() < 300) {
-                Matcher m = USD_PATTERN.matcher(res.body());
+            if (res.statusCode() / 100 == 2) {
+                var m = USD_PATTERN.matcher(res.body());
                 if (m.find()) {
-                    // Typical BCV uses comma for decimals; remove thousand separators
-                    String raw = m.group(1).trim();               // e.g. 179,43080000
-                    String normalized = raw.replace(".", "")      // remove thousand dots
-                            .replace(",", ".");     // use dot as decimal
+                    String raw = m.group(1).trim();            // e.g. 179,43080000
+                    String normalized = raw.replace(".", "").replace(",", ".");
                     double rate = Double.parseDouble(normalized);
-
-                    lastGood.set(rate);
+                    cache.set(rate);
                     fetchedAt = Instant.now();
-                    lastSource = "bcv";
                     return Optional.of(rate);
                 }
             }
-        } catch (Exception ignored) { }
-
-        // Stale cache still better than nothing
-        if (lastGood.get() != null) {
-            lastSource = "cache";
-            return Optional.of(lastGood.get());
-        }
-
-        // Controller will use fallback
-        return Optional.empty();
+        } catch (Exception ignored) { /* we’ll serve stale cache if any */ }
+        return Optional.ofNullable(cache.get());
     }
 
-    public double getFallbackRate() { return fallbackRate; }
-    public Instant getFetchedAt() { return fetchedAt.equals(Instant.EPOCH) ? Instant.now() : fetchedAt; }
-    public String getLastSource() { return lastSource; }
+    public Instant getFetchedAt() { return fetchedAt; }
 }
