@@ -16,4 +16,7 @@ public class ReferredBuyerDTO {
     private String username;
     private String email;
     private LocalDateTime timestamp;
+
+    private Integer quantity;
+    private java.math.BigDecimal unitPrice;
 }

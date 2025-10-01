@@ -39,6 +39,8 @@ public class TicketDTO {
     private static final DateTimeFormatter IOS_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
+    private Double unitPrice;
+
     public TicketDTO(Ticket ticket) { this(ticket, false); }
 
     public TicketDTO(Ticket ticket, boolean resold) {
@@ -73,6 +75,8 @@ public class TicketDTO {
         var dt = (event != null) ? event.getDateTime() : null;
         this.eventDateTime = (dt != null) ? IOS_FMT.format(dt) : null;   // ⬅️ consistent, no fractions
         this.eventCountry  = (event != null) ? event.getCountry() : null;
+
+        this.unitPrice = ticket.getTicketTier() != null ? ticket.getTicketTier().getPrice() : null;
 
         // STRICT future
         boolean future = (dt != null) && dt.isAfter(LocalDateTime.now());

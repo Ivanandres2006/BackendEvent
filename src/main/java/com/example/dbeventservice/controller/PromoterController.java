@@ -96,7 +96,9 @@ public class PromoterController {
                         s.getId(),
                         s.getBuyer().getUsername(),
                         s.getBuyer().getEmail(),
-                        s.getTimestamp()
+                        s.getTimestamp(),
+                        s.getQuantity(),
+                        s.getUnitPrice()
                 ))
                 .toList();
         return ResponseEntity.ok(out);
