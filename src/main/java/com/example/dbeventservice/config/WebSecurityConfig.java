@@ -76,11 +76,11 @@ public class WebSecurityConfig {
                                 "/events/{eventId}/waitlist/{entryId}/status",
                                 "/events/{eventId}/waitlist",
                                 "/api/attendance/events/*/going",
-                                "/api/users/me/**"
+                                "/api/users/me/**",
+                                "/api/fx/ves-per-usd"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/events/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/tickets/quote").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/fx/ves-per-usd").permitAll()
                         .requestMatchers("/auth/validate").authenticated()
                         .anyRequest().authenticated()
                 );
