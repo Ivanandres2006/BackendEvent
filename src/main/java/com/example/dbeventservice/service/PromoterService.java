@@ -247,7 +247,9 @@ public class PromoterService {
                     s.getBuyer().getId(),
                     s.getBuyer().getUsername(),
                     s.getBuyer().getEmail(),
-                    s.getTimestamp()
+                    s.getTimestamp(),
+                    s.getQuantity(),
+                    s.getUnitPrice()
             ));
         }
         return list;
