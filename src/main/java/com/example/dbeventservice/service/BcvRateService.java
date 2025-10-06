@@ -33,20 +33,33 @@ public class BcvRateService {
 
     private final AtomicReference<Double> cache = new AtomicReference<>(null);
     private volatile Instant fetchedAt = Instant.EPOCH;
-    private volatile String lastSource = ""; // "bcv" | "cache" | "fallback"
+    private volatile String lastSource = ""; // "override" | "bcv" | "cache" | "fallback"
+
+    // ---------- Admin override ----------
+    private final AtomicReference<Double> overrideRate = new AtomicReference<>(null);
+    private volatile Instant overrideUntil = Instant.EPOCH;
 
     public BcvRateService(@Value("${bcv.fallback:179.43}") double fallbackRate) {
         this.fallbackRate = fallbackRate;
     }
 
     public Optional<Double> getVesPerUsd() {
-        // If cache is fresh, serve it
+        // 0) If an override is active, it wins (and refreshes cache)
+        if (isOverrideActive()) {
+            var rate = overrideRate.get();
+            cache.set(rate);
+            fetchedAt = Instant.now();
+            lastSource = "override";
+            return Optional.of(rate);
+        }
+
+        // 1) If cache is fresh, serve it
         if (cache.get() != null && Duration.between(fetchedAt, Instant.now()).compareTo(TTL) < 0) {
             lastSource = "cache";
             return Optional.of(cache.get());
         }
 
-        // Try live BCV
+        // 2) Try live BCV
         try {
             var req = HttpRequest.newBuilder(URI.create(BCV_URL))
                     .header("User-Agent", "WKND-FX/1.0")
@@ -69,7 +82,7 @@ public class BcvRateService {
             // fall through
         }
 
-        // Fall back to existing cache or hard fallback
+        // 3) Fall back to existing cache or hard fallback
         if (cache.get() != null) {
             lastSource = "cache";
             return Optional.of(cache.get());
@@ -79,17 +92,30 @@ public class BcvRateService {
         return Optional.of(fallbackRate);
     }
 
-    public Instant getFetchedAt() {
-        return fetchedAt;
+    public Instant getFetchedAt() { return fetchedAt; }
+    public String getLastSource() { return lastSource; }
+    public double getFallbackRate() { return fallbackRate; }
+
+    // ---------- Override controls ----------
+    public void setOverride(double rate, Duration ttl) {
+        if (rate <= 0) throw new IllegalArgumentException("Rate must be > 0");
+        overrideRate.set(rate);
+        overrideUntil = Instant.now().plus(ttl != null ? ttl : Duration.ofHours(12));
+        lastSource = "override";
+        fetchedAt = Instant.now();
+        cache.set(rate); // keep public GET fast/consistent
     }
 
-    /** Expose which source was used for the last successful call: "bcv" | "cache" | "fallback". */
-    public String getLastSource() {
-        return lastSource;
+    public void clearOverride() {
+        overrideRate.set(null);
+        overrideUntil = Instant.EPOCH;
     }
 
-    /** Expose the configured fallback so controller can include it in the response if desired. */
-    public double getFallbackRate() {
-        return fallbackRate;
+    public boolean isOverrideActive() {
+        var r = overrideRate.get();
+        return (r != null && r > 0 && Instant.now().isBefore(overrideUntil));
     }
+
+    public Instant getOverrideUntil() { return overrideUntil; }
+    public Double getOverrideRate() { return overrideRate.get(); }
 }

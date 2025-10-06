@@ -24,7 +24,9 @@ public class FxController {
                                 "source", bcv.getLastSource(),
                                 "vesPerUsd", rate,
                                 "fetchedAt", bcv.getFetchedAt().toString(),
-                                "fallback", bcv.getFallbackRate()
+                                "fallback", bcv.getFallbackRate(),
+                                "overrideActive", bcv.isOverrideActive(),
+                                "overrideUntil", bcv.isOverrideActive() ? bcv.getOverrideUntil().toString() : null
                         )
                 ))
                 .orElseGet(() -> ResponseEntity.status(503).body(
