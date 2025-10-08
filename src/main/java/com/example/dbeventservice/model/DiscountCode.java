@@ -1,48 +1,61 @@
-// src/main/java/com/example/dbeventservice/model/DiscountCode.java
 package com.example.dbeventservice.model;
 
 import jakarta.persistence.*;
-import lombok.*;
-import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
 
-@Entity @Table(
-        name = "discount_codes",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"event_id","code"})
-)
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+import java.time.OffsetDateTime;
+
+@Getter @Setter
+@Entity
+@Table(name = "discount_code")
 public class DiscountCode {
-    public enum Type { PERCENT, AMOUNT } // AMOUNT in USD
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name="event_id", nullable = false)
     private Long eventId;
-
-    @Column(nullable=false, length=64)
-    private String code;
-
+    private String code;               // UPPERCASE
     @Enumerated(EnumType.STRING)
-    @Column(nullable=false)
-    private Type type;
+    private Type type;                 // PERCENT or AMOUNT
+    private double value;              // percent or USD per ticket
 
-    // For PERCENT => 0..100; For AMOUNT => dollars (e.g. 5.00 means $5)
-    @Column(nullable=false)
-    private Double value;
+    private Long appliesToTicketTierId; // nullable (all tiers)
 
-    private Long appliesToTicketTierId; // null = all tiers
+    private Integer maxUses;          // nullable => unlimited uses
+    private Integer usedCount;        // nullable or 0
 
-    private Integer maxUses;             // null = unlimited
-    @Column(nullable=false) private Integer usedCount = 0;
+    private Integer minQty;           // nullable
+    private Integer maxQty;           // nullable
 
-    private Integer minQty;              // optional constraints
-    private Integer maxQty;
+    private OffsetDateTime startsAt;  // nullable
+    private OffsetDateTime endsAt;    // nullable
 
-    private Instant startsAt;
-    private Instant endsAt;
+    private Boolean active;
 
-    @Column(nullable=false) private Boolean active = true;
+    // --- OPTIONAL ticket cap across redemptions ---
+    private Integer ticketLimit;      // null => unlimited discounted tickets
+    private Integer ticketsRedeemed;  // tracks consumed discounted tickets
 
-    // (optional) audit
-    private Long createdByUserId;
+    public enum Type { PERCENT, AMOUNT }
+
+    public int remainingTickets() {
+        if (ticketLimit == null) return Integer.MAX_VALUE;
+        int used = ticketsRedeemed == null ? 0 : ticketsRedeemed;
+        return Math.max(0, ticketLimit - used);
+    }
+
+    public void addRedemption(int qty) {
+        if (ticketLimit == null) return; // unlimited => no tracking
+        int used = ticketsRedeemed == null ? 0 : ticketsRedeemed;
+        ticketsRedeemed = used + Math.max(0, qty);
+    }
+
+    public boolean isActiveNow() {
+        if (Boolean.FALSE.equals(active)) return false;
+        OffsetDateTime now = OffsetDateTime.now();
+        if (startsAt != null && now.isBefore(startsAt)) return false;
+        if (endsAt != null && now.isAfter(endsAt)) return false;
+        return true;
+    }
 }

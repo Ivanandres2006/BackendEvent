@@ -10,25 +10,23 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.net.URI;
-import java.time.Instant;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/discounts")
 @RequiredArgsConstructor
 public class DiscountController {
+
     private final DiscountCodeRepository repo;
     private final DiscountService discountService;
-    // TODO: inject EventRepository/UserSessionService to enforce ownership
 
-    // Owner-only list
     @GetMapping
     public List<DiscountCode> list(@RequestParam Long eventId) {
         return repo.findByEventIdOrderByIdDesc(eventId);
     }
 
-    // Validate (public)
     @GetMapping("/validate")
     public DiscountResult validate(
             @RequestParam Long eventId,
@@ -37,58 +35,83 @@ public class DiscountController {
             @RequestParam long subtotalCents,
             @RequestParam String code
     ) {
-        return discountService.evaluate(eventId, ticketTierId, quantity, subtotalCents, code);
+        long unitPriceCents = 0L;
+        if (quantity > 0) {
+            unitPriceCents = BigDecimal
+                    .valueOf(subtotalCents)
+                    .divide(BigDecimal.valueOf(quantity), 0, BigDecimal.ROUND_HALF_UP)
+                    .longValue();
+        }
+        return discountService.validateAndCompute(code, unitPriceCents, quantity, eventId, ticketTierId);
     }
 
-    // Create (owner only)
     @PostMapping
     public ResponseEntity<?> create(@RequestBody DiscountDTO dto) {
-        // TODO: assertOwner(dto.getEventId());
-        var dc = DiscountCode.builder()
-                .eventId(dto.getEventId())
-                .code(dto.getCode().trim().toUpperCase())
-                .type(dto.getType())
-                .value(dto.getValue())
-                .appliesToTicketTierId(dto.getAppliesToTicketTierId())
-                .maxUses(dto.getMaxUses())
-                .usedCount(0)
-                .minQty(dto.getMinQty())
-                .maxQty(dto.getMaxQty())
-                .startsAt(dto.getStartsAt())
-                .endsAt(dto.getEndsAt())
-                .active(dto.getActive() == null ? Boolean.TRUE : dto.getActive())
-                .build();
-        var saved = repo.save(dc);
+        // require value on create (since client must send it once)
+        if (!dto.isValuePresent()) {
+            return ResponseEntity.badRequest().body("Field 'value' is required.");
+        }
+        if (dto.getType() == null) {
+            return ResponseEntity.badRequest().body("Field 'type' is required (PERCENT or AMOUNT).");
+        }
+        if (dto.getCode() == null || dto.getCode().isBlank()) {
+            return ResponseEntity.badRequest().body("Field 'code' is required.");
+        }
+        if (dto.getEventId() == null) {
+            return ResponseEntity.badRequest().body("Field 'eventId' is required.");
+        }
+
+        DiscountCode dc = new DiscountCode();
+        dc.setEventId(dto.getEventId());
+        dc.setCode(dto.getCode().trim().toUpperCase());
+        dc.setType(DiscountCode.Type.valueOf(dto.getType()));
+        dc.setValue(dto.getValue()); // safe: required on create
+
+        dc.setAppliesToTicketTierId(dto.getAppliesToTicketTierId());
+        dc.setMaxUses(dto.getMaxUses());
+        dc.setUsedCount(0);
+        dc.setMinQty(dto.getMinQty());
+        dc.setMaxQty(dto.getMaxQty());
+        dc.setStartsAt(dto.getStartsAt());
+        dc.setEndsAt(dto.getEndsAt());
+        dc.setActive(dto.getActive() == null ? Boolean.TRUE : dto.getActive());
+
+        // optional ticket cap
+        dc.setTicketLimit(dto.getTicketLimit());
+        dc.setTicketsRedeemed(0);
+
+        DiscountCode saved = repo.save(dc);
         return ResponseEntity.created(URI.create("/api/discounts/" + saved.getId())).body(saved);
     }
 
-    // Update (owner only)
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable Long id, @RequestBody DiscountDTO dto) {
-        var dc = repo.findById(id).orElse(null);
+        DiscountCode dc = repo.findById(id).orElse(null);
         if (dc == null) return ResponseEntity.notFound().build();
-        // TODO: assertOwner(dc.getEventId());
 
-        if (dto.getCode()!=null) dc.setCode(dto.getCode().trim().toUpperCase());
-        if (dto.getType()!=null) dc.setType(dto.getType());
-        if (dto.getValue()!=null) dc.setValue(dto.getValue());
+        if (dto.getCode() != null) dc.setCode(dto.getCode().trim().toUpperCase());
+        if (dto.getType() != null) dc.setType(DiscountCode.Type.valueOf(dto.getType()));
+        if (dto.isValuePresent())   dc.setValue(dto.getValue()); // ← use presence flag
+
         dc.setAppliesToTicketTierId(dto.getAppliesToTicketTierId());
         dc.setMaxUses(dto.getMaxUses());
         dc.setMinQty(dto.getMinQty());
         dc.setMaxQty(dto.getMaxQty());
         dc.setStartsAt(dto.getStartsAt());
         dc.setEndsAt(dto.getEndsAt());
-        if (dto.getActive()!=null) dc.setActive(dto.getActive());
+        if (dto.getActive() != null) dc.setActive(dto.getActive());
+
+        // Optional ticket cap
+        dc.setTicketLimit(dto.getTicketLimit());
+
         repo.save(dc);
         return ResponseEntity.ok(dc);
     }
 
-    // Delete (owner only)
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable Long id) {
-        var dc = repo.findById(id).orElse(null);
+        DiscountCode dc = repo.findById(id).orElse(null);
         if (dc == null) return ResponseEntity.notFound().build();
-        // TODO: assertOwner(dc.getEventId());
         repo.delete(dc);
         return ResponseEntity.noContent().build();
     }

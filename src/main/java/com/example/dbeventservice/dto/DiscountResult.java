@@ -1,13 +1,19 @@
-// src/main/java/com/example/dbeventservice/dto/DiscountResult.java
 package com.example.dbeventservice.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-@Data @AllArgsConstructor
+@Data
+@AllArgsConstructor
 public class DiscountResult {
     private boolean valid;
-    private String message;          // e.g. "10% off"
-    private String codeApplied;      // normalized code or null
-    private long discountCents;      // how much removed from subtotal
+    private String message;
+    private String codeApplied;
+    private int discountCents;
+
+    /**
+     * Remaining discounted tickets for this code.
+     * Integer.MAX_VALUE represents unlimited.
+     */
+    private int remainingTickets;
 }
