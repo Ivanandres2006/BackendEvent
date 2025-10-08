@@ -56,6 +56,7 @@ public class FeeCalculator {
         long serviceFee = platformFee + stripeFee;
         long total = subtotalCents + serviceFee;
 
+        // FeeCalculator.java  (inside quote)
         return new FeeBreakdown(
                 "USD",
                 subtotalCents,
@@ -65,7 +66,13 @@ public class FeeCalculator {
                 total,
                 servicePct.doubleValue(),
                 stripePct.doubleValue(),
-                stripeFixedCents
+                stripeFixedCents,
+
+                // NEW fields (no discount in this method)
+                null,   // originalSubtotalCents
+                null,   // discountCentsApplied
+                null,   // discountCodeApplied
+                null    // discountMessage
         );
     }
 
