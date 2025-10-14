@@ -80,6 +80,7 @@ public class WebSecurityConfig {
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/events/**").permitAll()
                         .requestMatchers("/api/fx/ves-per-usd").permitAll()
+                        .requestMatchers("/api/tickets/{id}/proof").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/tickets/quote").permitAll()
                         .requestMatchers("/auth/validate").authenticated()
                         .anyRequest().authenticated()
