@@ -183,11 +183,17 @@ public class TicketController {
         ));
     }
 
-    @PostMapping(value = "/{id}/proof", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+
+    @PostMapping(
+            value = "/{id}/proof",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
     @Transactional
     public ResponseEntity<?> uploadProof(
             @PathVariable Long id,
-            @RequestPart("file") MultipartFile file,
+            @RequestPart(value = "file",  required = false) MultipartFile file,
+            @RequestPart(value = "image", required = false) MultipartFile image,
             @AuthenticationPrincipal UserDetailsImpl user
     ) {
         var ticket = ticketRepository.findById(id)
@@ -196,38 +202,33 @@ public class TicketController {
         if (ticket.getOwner() == null || !ticket.getOwner().getId().equals(user.getId())) {
             return ResponseEntity.status(403).body(Map.of("error", "Unauthorized"));
         }
-        if (file == null || file.isEmpty()) {
+
+        MultipartFile part = (file != null && !file.isEmpty()) ? file : image;
+        if (part == null || part.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Empty file"));
         }
 
         try {
-            var eventId = ticket.getEvent() != null ? ticket.getEvent().getId() : 0L;
-            String url = storageService.uploadTicketReceipt(file, eventId, ticket.getId(), user.getId());
+            Long eventId = ticket.getEvent() != null ? ticket.getEvent().getId() : 0L;
+            String url = storageService.uploadTicketReceipt(part, eventId, ticket.getId(), user.getId());
 
             ticket.setProofUrl(url);
             ticket.setProofUploadedAt(LocalDateTime.now());
+            if (!ticket.isPaid()) ticket.setStatus(TicketStatus.PENDING);
+
             ticketRepository.saveAndFlush(ticket);
 
             log.info("✅ Receipt uploaded for ticket {}: {}", ticket.getId(), url);
+            return ResponseEntity.ok(Map.of("ticketId", ticket.getId(), "proofUrl", url));
 
-            return ResponseEntity.ok(Map.of(
-                    "ticketId", ticket.getId(),
-                    "proofUrl", ticket.getProofUrl()
-            ));
         } catch (org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
-            // File exceeded spring.servlet.multipart.max-file-size
-            return ResponseEntity.status(413).body(Map.of(
-                    "error", "File too large",
-                    "detail", ex.getMessage()
-            ));
+            return ResponseEntity.status(413).body(Map.of("error", "File too large"));
         } catch (Exception e) {
             log.warn("❌ Upload failed for ticket {}: {}", id, e.toString());
-            return ResponseEntity.status(500).body(Map.of(
-                    "error", "Upload failed",
-                    "detail", e.getMessage()
-            ));
+            return ResponseEntity.status(500).body(Map.of("error", "Upload failed", "detail", e.getMessage()));
         }
     }
+
 
     @GetMapping("/my")
     public ResponseEntity<?> myTickets(@RequestParam String email) {
