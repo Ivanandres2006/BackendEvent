@@ -10,6 +10,8 @@ import com.example.dbeventservice.service.TicketService;
 import com.example.dbeventservice.util.QRCodeGenerator;
 import lombok.Getter;
 import lombok.Setter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
@@ -29,6 +31,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/tickets")
 public class TicketController {
@@ -55,6 +58,9 @@ public class TicketController {
 
     @org.springframework.beans.factory.annotation.Value("${app.event.futureGraceHours:6}")
     private long futureGraceHours;
+
+    private static final Logger log = LoggerFactory.getLogger(TicketController.class);
+
 
     @Autowired
     public TicketController(TicketService ticketService) {
@@ -197,18 +203,31 @@ public class TicketController {
         try {
             var eventId = ticket.getEvent() != null ? ticket.getEvent().getId() : 0L;
             String url = storageService.uploadTicketReceipt(file, eventId, ticket.getId(), user.getId());
+
             ticket.setProofUrl(url);
             ticket.setProofUploadedAt(LocalDateTime.now());
-            ticketRepository.save(ticket);
+            ticketRepository.saveAndFlush(ticket);
+
+            log.info("✅ Receipt uploaded for ticket {}: {}", ticket.getId(), url);
+
             return ResponseEntity.ok(Map.of(
                     "ticketId", ticket.getId(),
                     "proofUrl", ticket.getProofUrl()
             ));
+        } catch (org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+            // File exceeded spring.servlet.multipart.max-file-size
+            return ResponseEntity.status(413).body(Map.of(
+                    "error", "File too large",
+                    "detail", ex.getMessage()
+            ));
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("error", "Upload failed"));
+            log.warn("❌ Upload failed for ticket {}: {}", id, e.toString());
+            return ResponseEntity.status(500).body(Map.of(
+                    "error", "Upload failed",
+                    "detail", e.getMessage()
+            ));
         }
     }
-
 
     @GetMapping("/my")
     public ResponseEntity<?> myTickets(@RequestParam String email) {
