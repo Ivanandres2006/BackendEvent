@@ -41,6 +41,9 @@ public class TicketDTO {
 
     private Double unitPrice;
 
+    private String proofUrl;
+    private String createdAt;
+
     public TicketDTO(Ticket ticket) { this(ticket, false); }
 
     public TicketDTO(Ticket ticket, boolean resold) {
@@ -81,6 +84,7 @@ public class TicketDTO {
         // STRICT future
         boolean future = (dt != null) && dt.isAfter(LocalDateTime.now());
 
+        this.proofUrl = ticket.getProofUrl();
         // Consider PAID/VALID OR boolean paid to avoid enum-null edge cases
         var ts = ticket.getStatus();
         boolean paidOrValid = ticket.isPaid()

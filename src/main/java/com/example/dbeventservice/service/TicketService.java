@@ -110,7 +110,6 @@ public class TicketService {
 
         Map<String, Object> response = new HashMap<>();
 
-        // ✅ Handle free tickets and manual rails
         boolean isFree = tier.getPrice() <= 0.0;
         boolean isManualPayment = paymentMethod != null &&
                 (paymentMethod.equalsIgnoreCase("zelle") ||
@@ -151,7 +150,6 @@ public class TicketService {
             event.updateAggregateInfoFromTiers();
             eventRepository.save(event);
 
-            // ✅ promoter tracking (manual/free): tickets & revenue always, commission only if enabled
             if (ref != null && !ref.isBlank()) {
                 promoterRepository.findByReferralCode(ref).ifPresent(promoter -> {
                     PromoterEvent pe = promoterService.assignEventToPromoter(eventId, promoter.getUser().getUsername());
@@ -167,11 +165,9 @@ public class TicketService {
                     sale.setTotalPrice(unit.multiply(BigDecimal.valueOf(sale.getQuantity())));
                     promoterSaleRepository.save(sale);
 
-                    // Always aggregate tickets/revenue
                     pe.setTicketsSold(pe.getTicketsSold() + sale.getQuantity());
                     pe.setGrossRevenue(pe.getGrossRevenue().add(sale.getTotalPrice()));
 
-                    // Only accrue commission if enabled (and sale after activation)
                     if (pe.isCommissionEnabled()) {
                         if (pe.getCommissionActivatedAt() == null ||
                                 !sale.getTimestamp().isBefore(pe.getCommissionActivatedAt())) {
@@ -189,7 +185,6 @@ public class TicketService {
                 firePurchaseNotifs(event, user);
             }
 
-            // ✅ fee breakdown for UI
             com.example.dbeventservice.model.Enum.PaymentMethod _method =
                     com.example.dbeventservice.model.Enum.PaymentMethod.from(paymentMethod);
             long _unitPriceCents = Math.round((tier.getPrice() == null ? 0.0 : tier.getPrice()) * 100.0);
@@ -198,10 +193,11 @@ public class TicketService {
 
             response.put("manual", isManualPayment);
             response.put("free", isFree);
+            response.put("ticketId", tickets.isEmpty() ? null : tickets.get(0).getId());
+            response.put("ticketIds", tickets.stream().map(Ticket::getId).toList());
             return response;
         }
 
-        // ✅ Stripe (card)
         PaymentMethod _method = PaymentMethod.from(paymentMethod);
         long _unitPriceCents = Math.round((tier.getPrice() == null ? 0.0 : tier.getPrice()) * 100.0);
         FeeBreakdown _fee = feeCalculator.quote(_unitPriceCents, quantity, _method);
@@ -234,8 +230,6 @@ public class TicketService {
         }
 
         PaymentIntent intent = PaymentIntent.create(builder.build());
-        System.out.println("✅ Created PaymentIntent: " + intent.getId());
-
         response.put("clientSecret", intent.getClientSecret());
         return response;
     }

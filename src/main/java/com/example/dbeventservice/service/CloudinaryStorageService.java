@@ -32,4 +32,22 @@ public class CloudinaryStorageService {
             throw new RuntimeException("Failed to upload image", e);
         }
     }
+
+    public String uploadTicketReceipt(MultipartFile file, Long eventId, Long ticketId, Long userId) {
+        try {
+            Map<?,?> res = cloudinary.uploader().upload(
+                    file.getBytes(),
+                    ObjectUtils.asMap(
+                            "folder", "wknd/tickets/" + eventId + "/" + ticketId,
+                            "public_id", "u" + userId + "_" + System.currentTimeMillis(),
+                            "overwrite", true,
+                            "resource_type", "image"
+                    )
+            );
+            return (String) res.get("secure_url");
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to upload receipt", e);
+        }
+    }
+
 }

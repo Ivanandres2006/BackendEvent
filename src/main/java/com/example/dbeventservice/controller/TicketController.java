@@ -5,6 +5,7 @@ import com.example.dbeventservice.dto.TicketDTO;
 import com.example.dbeventservice.model.*;
 import com.example.dbeventservice.model.Enum.TicketStatus;
 import com.example.dbeventservice.repositories.*;
+import com.example.dbeventservice.service.CloudinaryStorageService;
 import com.example.dbeventservice.service.TicketService;
 import com.example.dbeventservice.util.QRCodeGenerator;
 import lombok.Getter;
@@ -16,6 +17,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpHeaders;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.transaction.annotation.Transactional;
+
 
 
 import java.time.LocalDateTime;
@@ -44,6 +48,10 @@ public class TicketController {
     private ResalePostRepository resalePostRepository; // ✅ NEW
     @Autowired
     private EventRepository eventRepository;
+
+    @Autowired
+    private CloudinaryStorageService storageService;
+
 
     @org.springframework.beans.factory.annotation.Value("${app.event.futureGraceHours:6}")
     private long futureGraceHours;
@@ -169,6 +177,37 @@ public class TicketController {
         ));
     }
 
+    @PostMapping(value = "/{id}/proof", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Transactional
+    public ResponseEntity<?> uploadProof(
+            @PathVariable Long id,
+            @RequestPart("file") MultipartFile file,
+            @AuthenticationPrincipal UserDetailsImpl user
+    ) {
+        var ticket = ticketRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Ticket not found"));
+
+        if (ticket.getOwner() == null || !ticket.getOwner().getId().equals(user.getId())) {
+            return ResponseEntity.status(403).body(Map.of("error", "Unauthorized"));
+        }
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Empty file"));
+        }
+
+        try {
+            var eventId = ticket.getEvent() != null ? ticket.getEvent().getId() : 0L;
+            String url = storageService.uploadTicketReceipt(file, eventId, ticket.getId(), user.getId());
+            ticket.setProofUrl(url);
+            ticket.setProofUploadedAt(LocalDateTime.now());
+            ticketRepository.save(ticket);
+            return ResponseEntity.ok(Map.of(
+                    "ticketId", ticket.getId(),
+                    "proofUrl", ticket.getProofUrl()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Upload failed"));
+        }
+    }
 
 
     @GetMapping("/my")

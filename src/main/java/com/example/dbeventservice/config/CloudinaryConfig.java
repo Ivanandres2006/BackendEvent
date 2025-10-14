@@ -12,7 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Configuration
-public class CloudinaryConfig {
+public class    CloudinaryConfig {
     private static final Logger log = LoggerFactory.getLogger(CloudinaryConfig.class);
 
     @Value("${cloudinary.url:}")              private String propUrl;

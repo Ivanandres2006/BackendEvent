@@ -31,6 +31,11 @@ public class Ticket {
     private LocalDateTime usedAt;
     private String scannedBy; // (email/username of the checker)
 
+    @Column
+    private String proofUrl;
+
+    @Column
+    private LocalDateTime proofUploadedAt;
 
     @Column
     private String paymentMethod;
