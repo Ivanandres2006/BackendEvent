@@ -41,7 +41,10 @@ public class CloudinaryStorageService {
                             "folder", "wknd/tickets/" + eventId + "/" + ticketId,
                             "public_id", "u" + userId + "_" + System.currentTimeMillis(),
                             "overwrite", true,
-                            "resource_type", "image",
+                            "resource_type", "auto",
+                            "use_filename", true,
+                            "quality", "auto:eco",   // compress large images
+                            "fetch_format", "jpg",   // normalize PNG → JPG
                             "transformation", new com.cloudinary.Transformation<>().width(1600).height(1600).crop("limit")
                     )
             );
@@ -50,6 +53,7 @@ public class CloudinaryStorageService {
             throw new RuntimeException("Failed to upload receipt", e);
         }
     }
+
 
 
 }
