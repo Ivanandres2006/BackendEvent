@@ -31,10 +31,10 @@ public class Ticket {
     private LocalDateTime usedAt;
     private String scannedBy; // (email/username of the checker)
 
-    @Column
+    @Column(name = "proof_url", length = 512)
     private String proofUrl;
 
-    @Column
+    @Column(name = "proof_uploaded_at")
     private LocalDateTime proofUploadedAt;
 
     @Column
