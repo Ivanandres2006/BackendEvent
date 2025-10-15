@@ -41,8 +41,8 @@ public class CloudinaryStorageService {
                             "folder", "wknd/tickets/" + eventId + "/" + ticketId,
                             "public_id", "u" + userId + "_" + System.currentTimeMillis(),
                             "overwrite", true,
-                            "resource_type", "auto",   // 👈 important
-                            "use_filename", true
+                            "resource_type", "image",
+                            "transformation", new com.cloudinary.Transformation<>().width(1600).height(1600).crop("limit")
                     )
             );
             return (String) res.get("secure_url");
@@ -50,5 +50,6 @@ public class CloudinaryStorageService {
             throw new RuntimeException("Failed to upload receipt", e);
         }
     }
+
 
 }
