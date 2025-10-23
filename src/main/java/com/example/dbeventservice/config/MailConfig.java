@@ -1,4 +1,3 @@
-// src/main/java/com/example/dbeventservice/config/MailConfig.java
 package com.example.dbeventservice.config;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -13,16 +12,16 @@ import java.util.Properties;
 @Configuration
 public class MailConfig {
 
-    @Value("${app.mail.envelopeFrom:bounces@wkndevent.com}") // Return-Path
+    @Value("${app.mail.envelopeFrom:bounces@wkndevent.com}") // SMTP MAIL FROM (Return-Path)
     private String envelopeFrom;
 
     @Value("${app.mail.localhost:wkndevent.com}")            // EHLO/HELO name
     private String smtpLocalhost;
 
-    @Value("${app.mail.sslTrust:}")                          // optional (e.g. smtp.sendgrid.net)
+    @Value("${app.mail.sslTrust:smtp.mailgun.org}")          // host to trust (Mailgun default)
     private String sslTrust;
 
-    @Value("${app.mail.debug:false}")                        // set true temporarily to debug
+    @Value("${app.mail.debug:false}")                        // enable temporarily if you need logs
     private boolean debug;
 
     @Bean
@@ -53,9 +52,7 @@ public class MailConfig {
             p.put("mail.smtp.ssl.trust", sslTrust);
         }
 
-        // turn on temporarily if you need SMTP logs
         p.put("mail.debug", Boolean.toString(debug));
-
         return sender;
     }
 }

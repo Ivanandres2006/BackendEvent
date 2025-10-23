@@ -1,4 +1,3 @@
-// src/main/java/com/example/dbeventservice/service/impl/EmailServiceImpl.java
 package com.example.dbeventservice.service;
 
 import com.example.dbeventservice.model.Event;
@@ -60,9 +59,9 @@ public class EmailService implements Mailer {
 
     @Override
     public void sendVerificationEmail(String to, String name, String code) throws MessagingException {
-        // IMPORTANT: your template must include th:inline="text" so [[${...}]] is rendered
+        // Template must include th:inline="text" so [[${...}]] renders server-side
         String html = render("verification-email", Map.of("name", name, "code", code));
-        // HTML-only to prevent clients choosing text/plain and dropping styles
+        // HTML-only to keep styles (avoid clients selecting text/plain)
         sendHtmlOnly(to, "Your WKND verification code", html);
     }
 
@@ -74,7 +73,6 @@ public class EmailService implements Mailer {
 
     @Override
     public void sendTicketEmail(String to, String name, Event event, List<Ticket> tickets) throws MessagingException {
-        // Keep mixed/related for inline QR images
         record InlineImg(String cid, byte[] bytes, String type) {}
         List<InlineImg> inlines = new ArrayList<>();
         List<Map<String, Object>> items = new ArrayList<>(tickets.size());
@@ -101,8 +99,6 @@ public class EmailService implements Mailer {
                 msg, MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name()
         );
         setStandardHeaders(h, to, "Your WKND Tickets for " + event.getTitle());
-
-        // Provide text fallback for long email; HTML carries inline images by CID
         h.setText(plainTicketsText(name, event, tickets), html);
 
         if (appleWalletBadgePng != null) {
@@ -111,7 +107,6 @@ public class EmailService implements Mailer {
         for (InlineImg i : inlines) {
             h.addInline(i.cid(), new ByteArrayResource(i.bytes()), i.type());
         }
-
         mailSender.send(msg);
     }
 
@@ -125,24 +120,12 @@ public class EmailService implements Mailer {
         return templateEngine.process(tpl, c);
     }
 
-    /** HTML-only for short transactional code emails (prevents "unstyled" appearance). */
+    /** HTML-only for short transactional emails (prevents “unstyled” rendering in some clients). */
     private void sendHtmlOnly(String to, String subject, String html) throws MessagingException {
         MimeMessage msg = mailSender.createMimeMessage();
-        // Single-part HTML (not multipart/alternative)
         MimeMessageHelper h = new MimeMessageHelper(msg, StandardCharsets.UTF_8.name());
         setStandardHeaders(h, to, subject);
-        h.setText(html, true);
-        mailSender.send(msg);
-    }
-
-    @SuppressWarnings("unused")
-    private void sendAlt(String to, String subject, String html, String text) throws MessagingException {
-        MimeMessage msg = mailSender.createMimeMessage();
-        MimeMessageHelper h = new MimeMessageHelper(
-                msg, MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name()
-        );
-        setStandardHeaders(h, to, subject);
-        h.setText(text, html); // text/plain + text/html
+        h.setText(html, true); // HTML content
         mailSender.send(msg);
     }
 
@@ -161,8 +144,7 @@ public class EmailService implements Mailer {
         m.setHeader("X-Auto-Response-Suppress", "All");
         m.setHeader("List-Unsubscribe", "<" + unsubscribeUrl + ">, <mailto:unsubscribe@" + messageIdDomain + ">");
         m.setHeader("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
-        m.setHeader("Message-ID",
-                "<" + UUID.randomUUID() + "." + System.currentTimeMillis() + "@" + messageIdDomain + ">");
+        m.setHeader("Message-ID", "<" + UUID.randomUUID() + "." + System.currentTimeMillis() + "@" + messageIdDomain + ">");
     }
 
     private static String plainTicketsText(String name, Event event, List<Ticket> tickets) {
