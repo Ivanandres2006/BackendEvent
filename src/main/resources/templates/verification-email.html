@@ -4,12 +4,12 @@
     <meta charset="UTF-8" />
     <title>Verify Your Email</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:'Segoe UI',sans-serif;color:#1a1a1a;">
-<!-- 👇 enable Thymeleaf text inlining so [[${...}]] is rendered server-side -->
-<div th:inline="text" style="max-width:480px;margin:40px auto;background-color:#ffffff;border-radius:12px;padding:36px;box-shadow:0 4px 20px rgba(0,0,0,0.05);">
-
+<body th:inline="text" style="margin:0;padding:0;background-color:#f4f4f4;font-family:'Segoe UI',sans-serif;color:#1a1a1a;">
+<div style="max-width:480px;margin:40px auto;background-color:#ffffff;border-radius:12px;padding:36px;box-shadow:0 4px 20px rgba(0,0,0,0.05);">
+    <!-- Header -->
     <h2 style="font-weight:600;margin-bottom:12px;">Welcome, [[${name}]] 👋</h2>
 
+    <!-- Body -->
     <p style="font-size:15px;line-height:1.6;">
         Thanks for signing up to WKND. Use the code below to verify your email address:
     </p>
@@ -20,21 +20,32 @@
       </span>
     </div>
 
-    <p style="font-size:13px;color:#555;">This code is valid for 10 minutes. If you didn’t request this, feel free to ignore it.</p>
+    <p style="font-size:13px;color:#555;">
+        This code is valid for 10 minutes. If you didn’t request this, feel free to ignore it.
+    </p>
+
     <p style="margin-top:36px;font-size:14px;color:#888;">— WKND Team</p>
 
+    <!-- Divider -->
     <hr style="border:none;border-top:1px solid #ddd;margin:40px 0 20px 0;" />
 
+    <!-- Footer -->
     <div style="text-align:center;font-size:12px;color:#888;">
+        <!-- Follow Button (no inline SVG for email safety) -->
         <p style="margin-bottom:16px;">
             <a href="https://www.instagram.com/wkndevent/?hl=es"
-               style="display:inline-block;background-color:#f2f2f2;padding:8px 16px;border-radius:24px;text-decoration:none;color:#333;font-weight:500;font-size:13px;">
-                Follow us on Instagram
+               style="display:inline-flex;align-items:center;background-color:#f2f2f2;padding:8px 16px;border-radius:24px;text-decoration:none;color:#333;font-weight:500;font-size:13px;">
+                <span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:#333;margin-right:8px;"></span>
+                Follow us
             </a>
         </p>
+
+        <!-- Website -->
         <p style="margin:6px 0;">
             <a href="https://www.wkndevent.com/" style="color:#555;text-decoration:none;">www.wkndevent.com</a>
         </p>
+
+        <!-- Copyright -->
         <p style="margin:8px 0 0 0;color:#999;">© 2025 WKND</p>
     </div>
 </div>
