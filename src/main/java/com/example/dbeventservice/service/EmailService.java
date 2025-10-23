@@ -1,13 +1,14 @@
+// src/main/java/com/example/dbeventservice/service/impl/EmailServiceImpl.java
 package com.example.dbeventservice.service;
 
-import com.example.dbeventservice.dto.TicketEmailItem;
 import com.example.dbeventservice.model.Event;
 import com.example.dbeventservice.model.Ticket;
 import com.example.dbeventservice.util.QRCodeGenerator;
-import jakarta.annotation.PostConstruct;
 import jakarta.mail.MessagingException;
+import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -16,127 +17,166 @@ import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
-import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.*;
 
 @Service
 @RequiredArgsConstructor
-public class EmailService {
+public class EmailService implements Mailer {
 
     private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
 
-    private String appleWalletBadgeBase64;
+    @Value("${app.mail.from.address:no-reply@wkndevent.com}")
+    private String fromAddress;
 
-    // ✅ Load Apple Wallet badge image at startup
-    @PostConstruct
-    public void initBadge() throws IOException {
-        try {
-            byte[] bytes = Files.readAllBytes(
-                    new ClassPathResource("static/img/add-to-apple-wallet.png").getFile().toPath()
-            );
-            appleWalletBadgeBase64 = Base64.getEncoder().encodeToString(bytes);
-        } catch (Exception e) {
-            System.err.println("⚠️ Could not load Apple Wallet badge: " + e.getMessage());
-            appleWalletBadgeBase64 = null;
+    @Value("${app.mail.from.name:WKND}")
+    private String fromName;
+
+    @Value("${app.mail.replyTo:support@wkndevent.com}")
+    private String replyTo;
+
+    @Value("${app.mail.messageIdDomain:wkndevent.com}")
+    private String messageIdDomain;
+
+    @Value("${app.mail.unsubscribeUrl:https://www.wkndevent.com/unsubscribe}")
+    private String unsubscribeUrl;
+
+    private byte[] appleWalletBadgePng; // optional
+
+    @jakarta.annotation.PostConstruct
+    void loadWalletBadge() {
+        try (InputStream in = new ClassPathResource("static/img/add-to-apple-wallet.png").getInputStream()) {
+            appleWalletBadgePng = in.readAllBytes();
+        } catch (Exception ignored) {
+            appleWalletBadgePng = null;
         }
     }
 
+    // =========================
+    // Public API
+    // =========================
+
+    @Override
     public void sendVerificationEmail(String to, String name, String code) throws MessagingException {
-        MimeMessage mimeMessage = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, "utf-8");
-
-        Context context = new Context();
-        context.setVariable("name", name);
-        context.setVariable("code", code);
-        String htmlContent = templateEngine.process("verification-email", context);
-
-        helper.setTo(to);
-        helper.setSubject("Verify your email");
-        helper.setFrom("no-reply@wkndevent.com");
-        helper.setText(htmlContent, true);
-
-        mailSender.send(mimeMessage);
+        // IMPORTANT: your template must include th:inline="text" so [[${...}]] is rendered
+        String html = render("verification-email", Map.of("name", name, "code", code));
+        // HTML-only to prevent clients choosing text/plain and dropping styles
+        sendHtmlOnly(to, "Your WKND verification code", html);
     }
 
+    @Override
     public void sendPasswordResetEmail(String to, String name, String code) throws MessagingException {
-        MimeMessage mimeMessage = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, "utf-8");
-
-        Context context = new Context();
-        context.setVariable("name", name);
-        context.setVariable("code", code);
-
-        String htmlContent = templateEngine.process("reset-password-email", context);
-
-        helper.setTo(to);
-        helper.setSubject("Reset your password");
-        helper.setFrom("no-reply@wkndevent.com");
-        helper.setText(htmlContent, true);
-
-        mailSender.send(mimeMessage);
+        String html = render("reset-password-email", Map.of("name", name, "code", code));
+        sendHtmlOnly(to, "WKND password reset code", html);
     }
 
+    @Override
     public void sendTicketEmail(String to, String name, Event event, List<Ticket> tickets) throws MessagingException {
-        // 1) Prepare message in MIXED_RELATED so HTML + inline images live together
-        MimeMessage msg = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(
-                msg,
-                MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
-                StandardCharsets.UTF_8.name()
-        );
-        helper.setTo(to);
-        helper.setFrom("no-reply@wkndevent.com");
-        helper.setSubject("Your WKND Tickets for " + event.getTitle());
-
-        // 2) Build model for Thymeleaf AND collect inline image payloads to attach after we set HTML
-        record InlineImg(String cid, byte[] data, String contentType) {}
-        List<InlineImg> inlineImages = new ArrayList<>();
+        // Keep mixed/related for inline QR images
+        record InlineImg(String cid, byte[] bytes, String type) {}
+        List<InlineImg> inlines = new ArrayList<>();
         List<Map<String, Object>> items = new ArrayList<>(tickets.size());
 
         for (Ticket t : tickets) {
-            String cid = "qr-" + t.getId(); // must match 'cid:' + ${ticket.qrCid} in template
-
-            // Build what you encode in the QR (keep your existing format)
+            String cid = "qr-" + t.getId();
             String qrText = "TICKET:" + t.getId() + ":" + t.getOwner().getEmail();
-
             try {
                 byte[] png = QRCodeGenerator.generatePngBytes(qrText, 300);
-                inlineImages.add(new InlineImg(cid, png, "image/png"));
-            } catch (Exception e) {
-                // If QR generation fails, we'll rely on qrUrl fallback in HTML
-            }
-
+                inlines.add(new InlineImg(cid, png, "image/png"));
+            } catch (Exception ignored) {}
             String qrUrl = "https://backendevent-etce.onrender.com/api/tickets/qr/public/" + t.getId();
-
-            Map<String, Object> model = new HashMap<>();
-            model.put("id", t.getId());
-            model.put("qrCid", cid);   // primary: <img src="cid:qr-...">
-            model.put("qrUrl", qrUrl); // fallback remote PNG
-            items.add(model);
+            items.add(Map.of("id", t.getId(), "qrCid", cid, "qrUrl", qrUrl));
         }
 
         Context ctx = new Context();
         ctx.setVariable("name", name);
         ctx.setVariable("event", event);
         ctx.setVariable("tickets", items);
-
         String html = templateEngine.process("ticket-email", ctx);
 
-        // 3) Set HTML body (IMPORTANT: use the boolean 'html' overload for reliable inline resolution)
-        helper.setText(html, true);
+        MimeMessage msg = mailSender.createMimeMessage();
+        MimeMessageHelper h = new MimeMessageHelper(
+                msg, MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name()
+        );
+        setStandardHeaders(h, to, "Your WKND Tickets for " + event.getTitle());
 
-        // 4) Attach inline images AFTER setting HTML (safer across mail clients)
-        for (InlineImg img : inlineImages) {
-            helper.addInline(img.cid(), new ByteArrayResource(img.data()), img.contentType());
+        // Provide text fallback for long email; HTML carries inline images by CID
+        h.setText(plainTicketsText(name, event, tickets), html);
+
+        if (appleWalletBadgePng != null) {
+            h.addInline("wallet-badge", new ByteArrayResource(appleWalletBadgePng), "image/png");
+        }
+        for (InlineImg i : inlines) {
+            h.addInline(i.cid(), new ByteArrayResource(i.bytes()), i.type());
         }
 
-        // (Optional) If you want a text-only alternative, send a separate plain email, or
-        // switch to a custom MimeStructure. Many clients ignore text/alt when using related inlines.
-
-        // 5) Send
         mailSender.send(msg);
     }
+
+    // =========================
+    // Internals
+    // =========================
+
+    private String render(String tpl, Map<String, Object> model) {
+        Context c = new Context();
+        model.forEach(c::setVariable);
+        return templateEngine.process(tpl, c);
+    }
+
+    /** HTML-only for short transactional code emails (prevents "unstyled" appearance). */
+    private void sendHtmlOnly(String to, String subject, String html) throws MessagingException {
+        MimeMessage msg = mailSender.createMimeMessage();
+        // Single-part HTML (not multipart/alternative)
+        MimeMessageHelper h = new MimeMessageHelper(msg, StandardCharsets.UTF_8.name());
+        setStandardHeaders(h, to, subject);
+        h.setText(html, true);
+        mailSender.send(msg);
+    }
+
+    @SuppressWarnings("unused")
+    private void sendAlt(String to, String subject, String html, String text) throws MessagingException {
+        MimeMessage msg = mailSender.createMimeMessage();
+        MimeMessageHelper h = new MimeMessageHelper(
+                msg, MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name()
+        );
+        setStandardHeaders(h, to, subject);
+        h.setText(text, html); // text/plain + text/html
+        mailSender.send(msg);
+    }
+
+    private void setStandardHeaders(MimeMessageHelper h, String to, String subject) throws MessagingException {
+        try {
+            h.setTo(new InternetAddress(to));
+            h.setFrom(new InternetAddress(fromAddress, fromName));
+        } catch (Exception e) {
+            h.setFrom(fromAddress);
+        }
+        h.setReplyTo(replyTo);
+        h.setSubject(subject);
+
+        var m = h.getMimeMessage();
+        m.setHeader("Auto-Submitted", "auto-generated");
+        m.setHeader("X-Auto-Response-Suppress", "All");
+        m.setHeader("List-Unsubscribe", "<" + unsubscribeUrl + ">, <mailto:unsubscribe@" + messageIdDomain + ">");
+        m.setHeader("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
+        m.setHeader("Message-ID",
+                "<" + UUID.randomUUID() + "." + System.currentTimeMillis() + "@" + messageIdDomain + ">");
+    }
+
+    private static String plainTicketsText(String name, Event event, List<Ticket> tickets) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Hi ").append(safe(name)).append(",\n\n")
+                .append("Here are your tickets for ").append(event.getTitle()).append(":\n");
+        for (Ticket t : tickets) {
+            sb.append("- Ticket #").append(t.getId()).append(" • QR: ")
+                    .append("https://backendevent-etce.onrender.com/api/tickets/qr/public/")
+                    .append(t.getId()).append("\n");
+        }
+        sb.append("\nEnjoy!\n— WKND\n");
+        return sb.toString();
+    }
+
+    private static String safe(String s) { return s == null ? "" : s; }
 }

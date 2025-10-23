@@ -5,10 +5,7 @@ import com.example.dbeventservice.auth.jwt.UserDetailsImpl;
 import com.example.dbeventservice.model.Enum.Role;
 import com.example.dbeventservice.model.User;
 import com.example.dbeventservice.repositories.UserRepository;
-import com.example.dbeventservice.service.AppleVerifierService;
-import com.example.dbeventservice.service.EmailService;
-import com.example.dbeventservice.service.GoogleVerifierService;
-import com.example.dbeventservice.service.SmsService;
+import com.example.dbeventservice.service.*;
 import jakarta.validation.Valid;
 import lombok.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,7 +46,7 @@ public class AuthController {
     private AppleVerifierService appleVerifierService;
 
     @Autowired
-    EmailService emailService;
+    private Mailer emailService;
 
     @Autowired
     JwtUtils jwtUtils;
