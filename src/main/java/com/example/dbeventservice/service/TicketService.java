@@ -92,17 +92,17 @@ public class TicketService {
             String ref,
             String paymentMethod
     ) throws StripeException {
-        Optional<User> userOpt = userRepository.findById(userId);
-        Optional<TicketTier> tierOpt = ticketTierRepository.findById(ticketTierId);
-        Optional<Event> eventOpt = eventRepository.findById(eventId);
+        Optional<User> userOpt  = userRepository.findById(userId);
+        Optional<TicketTier> tO = ticketTierRepository.findById(ticketTierId);
+        Optional<Event> eO      = eventRepository.findById(eventId);
 
-        if (userOpt.isEmpty() || tierOpt.isEmpty() || eventOpt.isEmpty()) {
+        if (userOpt.isEmpty() || tO.isEmpty() || eO.isEmpty()) {
             throw new IllegalArgumentException("Invalid user, event, or tier ID");
         }
 
-        TicketTier tier = tierOpt.get();
-        Event event = eventOpt.get();
-        User user = userOpt.get();
+        TicketTier tier = tO.get();
+        Event event     = eO.get();
+        User user       = userOpt.get();
 
         if (tier.getAvailableQuantity() < quantity) {
             throw new IllegalStateException("Not enough tickets available");
@@ -110,21 +110,23 @@ public class TicketService {
 
         Map<String, Object> response = new HashMap<>();
 
-        boolean isFree = tier.getPrice() <= 0.0;
-        boolean isManualPayment = paymentMethod != null &&
-                (paymentMethod.equalsIgnoreCase("zelle") ||
-                        paymentMethod.equalsIgnoreCase("pagoMovil") ||
-                        paymentMethod.equalsIgnoreCase("cash"));
+        final String pm = (paymentMethod == null) ? "" : paymentMethod.trim();
+        final boolean isFree = (tier.getPrice() == null) ? true : tier.getPrice() <= 0.0;
+        final boolean isManualPayment = !pm.isEmpty() &&
+                (pm.equalsIgnoreCase("zelle") || pm.equalsIgnoreCase("pagoMovil") || pm.equalsIgnoreCase("cash"));
 
+        // ===== FREE or MANUAL =====
         if (isFree || isManualPayment) {
-            List<Ticket> tickets = new ArrayList<>();
+            List<Ticket> tickets = new ArrayList<>(quantity);
+
             for (int i = 0; i < quantity; i++) {
                 Ticket ticket = new Ticket();
                 ticket.setOwner(user);
                 ticket.setEvent(event);
                 ticket.setTicketTier(tier);
-                ticket.setPaymentMethod(paymentMethod != null ? paymentMethod : "free");
+                ticket.setPaymentMethod(isFree ? "free" : pm.toLowerCase());
                 ticket.setQuantity(1);
+
                 if (isFree) {
                     ticket.setPaid(true);
                     ticket.setStatus(TicketStatus.PAID);
@@ -132,24 +134,41 @@ public class TicketService {
                     ticket.setPaid(false);
                     ticket.setStatus(TicketStatus.PENDING);
                 }
-                ticketRepository.save(ticket);
 
+                ticketRepository.save(ticket); // get ID
                 ticket.setQrCodeUrl("/api/tickets/qr/" + ticket.getId());
                 ticketRepository.save(ticket);
 
                 tickets.add(ticket);
             }
 
+            // ✅ send email ONCE, after tickets list is populated (FREE only)
+            if (isFree && !tickets.isEmpty()) {
+                try {
+                    emailService.sendTicketEmail(
+                            user.getEmail(),
+                            user.getFirstName(),
+                            event,
+                            tickets
+                    );
+                } catch (Exception ex) {
+                    logger.warn("⚠️ Failed to send FREE ticket email", ex);
+                }
+            }
+
+            // add attendee (don’t notify on manual yet)
             if (!event.getAttendees().contains(user)) {
                 event.getAttendees().add(user);
                 eventRepository.save(event);
             }
 
+            // reserve/decrement tier quantity now
             tier.setAvailableQuantity(Math.max(tier.getAvailableQuantity() - quantity, 0));
             ticketTierRepository.save(tier);
             event.updateAggregateInfoFromTiers();
             eventRepository.save(event);
 
+            // promoter tracking
             if (ref != null && !ref.isBlank()) {
                 promoterRepository.findByReferralCode(ref).ifPresent(promoter -> {
                     PromoterEvent pe = promoterService.assignEventToPromoter(eventId, promoter.getUser().getUsername());
@@ -176,7 +195,6 @@ public class TicketService {
                             );
                         }
                     }
-
                     promoterEventRepository.save(pe);
                 });
             }
@@ -185,11 +203,12 @@ public class TicketService {
                 firePurchaseNotifs(event, user);
             }
 
-            com.example.dbeventservice.model.Enum.PaymentMethod _method =
-                    com.example.dbeventservice.model.Enum.PaymentMethod.from(paymentMethod);
-            long _unitPriceCents = Math.round((tier.getPrice() == null ? 0.0 : tier.getPrice()) * 100.0);
-            FeeBreakdown _fee = feeCalculator.quote(_unitPriceCents, quantity, _method);
-            response.put("breakdown", _fee);
+            // ✅ null-safe method for fees (use model enum here)
+            com.example.dbeventservice.model.Enum.PaymentMethod feeMethod =
+                    com.example.dbeventservice.model.Enum.PaymentMethod.from(isFree ? "free" : pm);
+            long unitCents = Math.round((tier.getPrice() == null ? 0.0 : tier.getPrice()) * 100.0);
+            FeeBreakdown fee = feeCalculator.quote(unitCents, quantity, feeMethod);
+            response.put("breakdown", fee);
 
             response.put("manual", isManualPayment);
             response.put("free", isFree);
@@ -198,13 +217,13 @@ public class TicketService {
             return response;
         }
 
-        PaymentMethod _method = PaymentMethod.from(paymentMethod);
-        long _unitPriceCents = Math.round((tier.getPrice() == null ? 0.0 : tier.getPrice()) * 100.0);
-        FeeBreakdown _fee = feeCalculator.quote(_unitPriceCents, quantity, _method);
+        // ===== STRIPE CARD FLOW =====
+        PaymentMethod _method = PaymentMethod.from(pm); // Stripe-side enum
+        long unitCents = Math.round((tier.getPrice() == null ? 0.0 : tier.getPrice()) * 100.0);
+        FeeBreakdown fee = feeCalculator.quote(unitCents, quantity, _method);
+        response.put("breakdown", fee);
 
-        response.put("breakdown", _fee);
-
-        long amount = _fee.getTotalCents();
+        long amount = fee.getTotalCents();
 
         PaymentIntentCreateParams.Builder builder = PaymentIntentCreateParams.builder()
                 .setAmount(amount)
@@ -215,9 +234,9 @@ public class TicketService {
                 .putMetadata("ticketTierId", String.valueOf(ticketTierId))
                 .putMetadata("quantity", String.valueOf(quantity))
                 .putMetadata("email", email)
-                .putMetadata("serviceFeeCents", String.valueOf(_fee.getServiceFeeCents()))
-                .putMetadata("platformFeeCents", String.valueOf(_fee.getPlatformFeeCents()))
-                .putMetadata("stripeFeeCents", String.valueOf(_fee.getStripeFeeCents()))
+                .putMetadata("serviceFeeCents", String.valueOf(fee.getServiceFeeCents()))
+                .putMetadata("platformFeeCents", String.valueOf(fee.getPlatformFeeCents()))
+                .putMetadata("stripeFeeCents", String.valueOf(fee.getStripeFeeCents()))
                 .setSetupFutureUsage(PaymentIntentCreateParams.SetupFutureUsage.OFF_SESSION)
                 .setAutomaticPaymentMethods(
                         PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
@@ -330,113 +349,117 @@ public class TicketService {
     public void confirmPayment(String paymentIntentId) {
         try {
             PaymentIntent intent = PaymentIntent.retrieve(paymentIntentId);
+            if (intent == null) return;
 
-            if ("succeeded".equals(intent.getStatus())) {
-                Map<String, String> metadata = intent.getMetadata();
+            // Act only once the payment truly succeeded (idempotent)
+            if (!"succeeded".equalsIgnoreCase(intent.getStatus())) return;
 
-                Long userId = Long.parseLong(metadata.get("userId"));
-                Long eventId = Long.parseLong(metadata.get("eventId"));
-                Long ticketTierId = Long.parseLong(metadata.get("ticketTierId"));
-                int quantity = Integer.parseInt(metadata.get("quantity"));
-                String email = metadata.get("email");
+            Map<String, String> md = intent.getMetadata();
+            if (md == null) return;
 
-                Optional<User> userOpt = userRepository.findById(userId);
-                Optional<Event> eventOpt = eventRepository.findById(eventId);
-                Optional<TicketTier> tierOpt = ticketTierRepository.findById(ticketTierId);
-                if (userOpt.isEmpty() || eventOpt.isEmpty() || tierOpt.isEmpty()) return;
+            Long userId       = Long.parseLong(md.get("userId"));
+            Long eventId      = Long.parseLong(md.get("eventId"));
+            Long ticketTierId = Long.parseLong(md.get("ticketTierId"));
+            int  quantity     = Integer.parseInt(md.get("quantity"));
 
-                User user = userOpt.get();
-                Event event = eventOpt.get();
-                TicketTier tier = tierOpt.get();
+            Optional<User> u  = userRepository.findById(userId);
+            Optional<Event> e = eventRepository.findById(eventId);
+            Optional<TicketTier> t = ticketTierRepository.findById(ticketTierId);
+            if (u.isEmpty() || e.isEmpty() || t.isEmpty()) return;
 
-                if (tier.getAvailableQuantity() < quantity) {
-                    System.out.println("❌ Not enough tickets left at confirmation time.");
-                    return;
-                }
+            User user = u.get();
+            Event event = e.get();
+            TicketTier tier = t.get();
 
-                // create tickets
-                List<Ticket> tickets = new ArrayList<>();
-                for (int i = 0; i < quantity; i++) {
-                    Ticket ticket = new Ticket();
-                    ticket.setOwner(user);
-                    ticket.setEvent(event);
-                    ticket.setTicketTier(tier);
-                    ticket.setPaymentMethod("stripe");
-                    ticket.setPaid(true);
-                    ticket.setQuantity(1);
-                    ticket.setStatus(TicketStatus.PAID);
-                    ticketRepository.save(ticket);
+            // Guard against oversell at confirmation time
+            if (tier.getAvailableQuantity() < quantity) {
+                logger.warn("Not enough tickets at confirmation time. tier={}, left={}, qty={}", tier.getId(), tier.getAvailableQuantity(), quantity);
+                return;
+            }
 
-                    ticket.setQrCodeUrl("/api/tickets/qr/" + ticket.getId());
-                    ticketRepository.save(ticket);
+            // Create tickets (1 each) and QR links
+            List<Ticket> tickets = new ArrayList<>(quantity);
+            for (int i = 0; i < quantity; i++) {
+                Ticket ticket = new Ticket();
+                ticket.setOwner(user);
+                ticket.setEvent(event);
+                ticket.setTicketTier(tier);
+                ticket.setPaymentMethod("stripe");
+                ticket.setPaid(true);
+                ticket.setQuantity(1);
+                ticket.setStatus(TicketStatus.PAID);
+                ticketRepository.save(ticket);
 
-                    tickets.add(ticket);
-                }
+                ticket.setQrCodeUrl("/api/tickets/qr/" + ticket.getId());
+                ticketRepository.save(ticket);
 
-                // email
-                if (!tickets.isEmpty()) {
-                    try {
-                        emailService.sendTicketEmail(
-                                user.getEmail(),
-                                user.getFirstName(),
-                                event,
-                                tickets
-                        );
-                    } catch (Exception ex) {
-                        logger.warn("⚠️ Failed to send ticket email", ex);
-                    }
-                }
+                tickets.add(ticket);
+            }
 
-                if (!event.getAttendees().contains(user)) {
-                    event.getAttendees().add(user);
-                    eventRepository.save(event);
-                    firePurchaseNotifs(event, user);
-                }
-
-                tier.setAvailableQuantity(Math.max(tier.getAvailableQuantity() - quantity, 0));
-                ticketTierRepository.save(tier);
-
-                event.updateAggregateInfoFromTiers();
-                eventRepository.save(event);
-
-                // promoter tracking (Stripe success)
-                String ref = metadata.get("ref");
-                if (ref != null && !ref.isBlank()) {
-                    promoterRepository.findByReferralCode(ref).ifPresent(promoter -> {
-                        PromoterEvent pe = promoterService.assignEventToPromoter(eventId, promoter.getUser().getUsername());
-
-                        PromoterSale sale = new PromoterSale();
-                        sale.setPromoterEvent(pe);
-                        sale.setBuyer(user);
-                        sale.setTimestamp(LocalDateTime.now());
-                        sale.setQuantity(Math.max(1, quantity));
-
-                        BigDecimal unit = BigDecimal.valueOf(tier.getPrice() == null ? 0.0 : tier.getPrice());
-                        sale.setUnitPrice(unit);
-                        sale.setTotalPrice(unit.multiply(BigDecimal.valueOf(sale.getQuantity())));
-                        promoterSaleRepository.save(sale);
-
-                        pe.setTicketsSold(pe.getTicketsSold() + sale.getQuantity());
-                        pe.setGrossRevenue(pe.getGrossRevenue().add(sale.getTotalPrice()));
-
-                        if (pe.isCommissionEnabled()) {
-                            if (pe.getCommissionActivatedAt() == null ||
-                                    !sale.getTimestamp().isBefore(pe.getCommissionActivatedAt())) {
-                                pe.setCommissionEarned(
-                                        pe.getCommissionEarned().add(sale.getTotalPrice().multiply(pe.getCommissionRate()))
-                                );
-                            }
-                        }
-
-                        promoterEventRepository.save(pe);
-                    });
+            // Email once with all tickets (avoid sending inside the loop)
+            if (!tickets.isEmpty()) {
+                try {
+                    emailService.sendTicketEmail(
+                            user.getEmail(),
+                            user.getFirstName(),
+                            event,
+                            tickets
+                    );
+                } catch (Exception ex) {
+                    logger.warn("Ticket email failed", ex);
                 }
             }
 
+            // Add attendee and fire notifs once
+            if (!event.getAttendees().contains(user)) {
+                event.getAttendees().add(user);
+                eventRepository.save(event);
+                firePurchaseNotifs(event, user);
+            }
+
+            // Decrement availability and refresh aggregates
+            tier.setAvailableQuantity(Math.max(tier.getAvailableQuantity() - quantity, 0));
+            ticketTierRepository.save(tier);
+            event.updateAggregateInfoFromTiers();
+            eventRepository.save(event);
+
+            // Promoter attribution (if any)
+            String ref = md.get("ref");
+            if (ref != null && !ref.isBlank()) {
+                promoterRepository.findByReferralCode(ref).ifPresent(promoter -> {
+                    PromoterEvent pe = promoterService.assignEventToPromoter(eventId, promoter.getUser().getUsername());
+
+                    PromoterSale sale = new PromoterSale();
+                    sale.setPromoterEvent(pe);
+                    sale.setBuyer(user);
+                    sale.setTimestamp(LocalDateTime.now());
+                    sale.setQuantity(Math.max(1, quantity));
+
+                    BigDecimal unit = BigDecimal.valueOf(tier.getPrice() == null ? 0.0 : tier.getPrice());
+                    sale.setUnitPrice(unit);
+                    sale.setTotalPrice(unit.multiply(BigDecimal.valueOf(sale.getQuantity())));
+                    promoterSaleRepository.save(sale);
+
+                    pe.setTicketsSold(pe.getTicketsSold() + sale.getQuantity());
+                    pe.setGrossRevenue(pe.getGrossRevenue().add(sale.getTotalPrice()));
+
+                    if (pe.isCommissionEnabled()) {
+                        if (pe.getCommissionActivatedAt() == null ||
+                                !sale.getTimestamp().isBefore(pe.getCommissionActivatedAt())) {
+                            pe.setCommissionEarned(
+                                    pe.getCommissionEarned().add(sale.getTotalPrice().multiply(pe.getCommissionRate()))
+                            );
+                        }
+                    }
+                    promoterEventRepository.save(pe);
+                });
+            }
+
         } catch (Exception e) {
-            System.out.println("❌ Stripe confirm error: " + e.getMessage());
+            logger.warn("confirmPayment failed", e);
         }
     }
+
 
     public List<Ticket> getUserTickets(Long userId) {
         return userRepository.findById(userId)
