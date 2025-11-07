@@ -52,7 +52,8 @@ public class AuthController {
     JwtUtils jwtUtils;
 
     private static final Set<String> RESERVED_USERNAMES = Set.of(
-            "admin", "support", "root", "system", "moderator", "staff", "gay", "homosexual", "marico", "faggot"
+            "admin", "support", "root", "system", "moderator", "staff", "gay", "homosexual", "marico", "faggot",
+            "ivanesgay", "quemalaestaapp","WKND Admin"
     );
 
     @PostMapping("/login")
@@ -538,8 +539,7 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<?> refreshToken(@RequestBody Map<String, String> request) {
         String refreshToken = request.get("refreshToken");
-
-        if (refreshToken == null || refreshToken.isEmpty()) {
+        if (refreshToken == null || refreshToken.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Refresh token is missing"));
         }
 
@@ -547,16 +547,20 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Invalid refresh token"));
         }
 
-        String email = jwtUtils.getUserNameFromJwtToken(refreshToken);
-        Optional<User> userOpt = userRepository.findByEmail(email);
+        // The JWT "sub" may be email OR username depending on how tokens were issued.
+        String subject = jwtUtils.getUserNameFromJwtToken(refreshToken);
 
+        // Try email first, then username.
+        Optional<User> userOpt = userRepository.findByEmail(subject);
+        if (userOpt.isEmpty()) {
+            userOpt = userRepository.findByUsername(subject);
+        }
         if (userOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "User not found"));
         }
 
         UserDetailsImpl userDetails = UserDetailsImpl.build(userOpt.get());
-
-        String newAccessToken = jwtUtils.generateJwtToken(userDetails);
+        String newAccessToken  = jwtUtils.generateJwtToken(userDetails);
         String newRefreshToken = jwtUtils.generateRefreshToken(userDetails);
 
         return ResponseEntity.ok(Map.of(
