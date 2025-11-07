@@ -547,14 +547,12 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Invalid refresh token"));
         }
 
-        // The JWT "sub" may be email OR username depending on how tokens were issued.
+        // 'sub' may be email OR username depending on how the token was issued
         String subject = jwtUtils.getUserNameFromJwtToken(refreshToken);
 
-        // Try email first, then username.
+        // Try email first, then username
         Optional<User> userOpt = userRepository.findByEmail(subject);
-        if (userOpt.isEmpty()) {
-            userOpt = userRepository.findByUsername(subject);
-        }
+        if (userOpt.isEmpty()) userOpt = userRepository.findByUsername(subject);
         if (userOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "User not found"));
         }
@@ -568,6 +566,7 @@ public class AuthController {
                 "refreshToken", newRefreshToken
         ));
     }
+
 
     // === DTOs ===
 
