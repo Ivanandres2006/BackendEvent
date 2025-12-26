@@ -90,7 +90,8 @@ public class TicketService {
             int quantity,
             String email,
             String ref,
-            String paymentMethod
+            String paymentMethod,
+            String cedula
     ) throws StripeException {
         Optional<User> userOpt  = userRepository.findById(userId);
         Optional<TicketTier> tO = ticketTierRepository.findById(ticketTierId);
@@ -103,6 +104,24 @@ public class TicketService {
         TicketTier tier = tO.get();
         Event event     = eO.get();
         User user       = userOpt.get();
+
+        String ci = (cedula == null) ? null : cedula.trim();
+        if (ci != null && !ci.isEmpty()) {
+            ci = ci.replaceAll("[^0-9A-Za-z]", ""); // keep clean
+            if (ci.length() > 30) ci = ci.substring(0, 30);
+        }
+
+        if (event.isRequireCedula()) {
+            if (ci == null || ci.isEmpty()) {
+                throw new IllegalArgumentException("Cedula is required for this event");
+            }
+        }
+
+        if (ci != null && !ci.isEmpty()) {
+            user.setCedula(ci);
+            userRepository.save(user);
+        }
+
 
         if (tier.getAvailableQuantity() < quantity) {
             throw new IllegalStateException("Not enough tickets available");
@@ -124,6 +143,7 @@ public class TicketService {
                 ticket.setOwner(user);
                 ticket.setEvent(event);
                 ticket.setTicketTier(tier);
+                ticket.setCedula(ci);
                 ticket.setPaymentMethod(isFree ? "free" : pm.toLowerCase());
                 ticket.setQuantity(1);
 
@@ -244,6 +264,10 @@ public class TicketService {
                                 .build()
                 );
 
+        if (ci != null && !ci.isBlank()) {
+            builder.putMetadata("cedula", ci);
+        }
+
         if (ref != null && !ref.isBlank()) {
             builder.putMetadata("ref", ref);
         }
@@ -357,6 +381,13 @@ public class TicketService {
             Map<String, String> md = intent.getMetadata();
             if (md == null) return;
 
+            String ci = md.get("cedula");
+            if (ci != null) {
+                ci = ci.trim().replaceAll("[^0-9A-Za-z]", "");
+                if (ci.length() > 30) ci = ci.substring(0, 30);
+            }
+
+
             Long userId       = Long.parseLong(md.get("userId"));
             Long eventId      = Long.parseLong(md.get("eventId"));
             Long ticketTierId = Long.parseLong(md.get("ticketTierId"));
@@ -368,6 +399,12 @@ public class TicketService {
             if (u.isEmpty() || e.isEmpty() || t.isEmpty()) return;
 
             User user = u.get();
+
+            if (ci != null && !ci.isBlank()) {
+                user.setCedula(ci);
+                userRepository.save(user);
+            }
+
             Event event = e.get();
             TicketTier tier = t.get();
 
@@ -384,6 +421,7 @@ public class TicketService {
                 ticket.setOwner(user);
                 ticket.setEvent(event);
                 ticket.setTicketTier(tier);
+                ticket.setCedula(ci);
                 ticket.setPaymentMethod("stripe");
                 ticket.setPaid(true);
                 ticket.setQuantity(1);

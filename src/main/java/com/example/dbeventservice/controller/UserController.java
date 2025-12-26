@@ -114,6 +114,7 @@ public class UserController {
                 .role(user.getRole() != null ? user.getRole().name() : "USER")
                 .canCreateEvents(user.isCanCreateEvents())
                 .username(nz(user.getUsername()))
+                .cedula(nz(user.getCedula()))
                 .avatarUrl(nz(user.getAvatarUrl()))
                 .bio(nz(user.getBio()))
                 .hideProfile(user.isHideProfile())
@@ -183,6 +184,8 @@ public class UserController {
         private String role;
         private boolean canCreateEvents;
         private String username;
+
+        private String cedula;
 
         // profile
         private String avatarUrl;

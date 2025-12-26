@@ -35,6 +35,9 @@ public class User {
     @Column(unique = true)
     private String phone;
 
+    @Column(length = 30)
+    private String cedula;
+
     private String password;
 
     // Profile

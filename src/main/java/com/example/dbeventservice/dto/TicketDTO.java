@@ -44,6 +44,8 @@ public class TicketDTO {
     private String proofUrl;
     private String createdAt;
 
+    private String cedula;
+
     public TicketDTO(Ticket ticket) { this(ticket, false); }
 
     public TicketDTO(Ticket ticket, boolean resold) {
@@ -72,6 +74,8 @@ public class TicketDTO {
         this.used = ticket.isUsed();
         this.usedAt = ticket.getUsedAt() != null ? ticket.getUsedAt().toString() : null;
         this.scannedBy = ticket.getScannedBy();
+
+        this.cedula = ticket.getCedula();
 
         // --- Event fields ---
         var event = ticket.getEvent();

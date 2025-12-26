@@ -36,6 +36,9 @@ public class Event {
     private Double latitude;
     private Double longitude;
 
+    @Column(nullable = false)
+    private boolean requireCedula = false;
+
     private Double price; // ✅ Base/default price (optional)
     private Integer availableTickets; // ✅ Aggregate available quantity
 

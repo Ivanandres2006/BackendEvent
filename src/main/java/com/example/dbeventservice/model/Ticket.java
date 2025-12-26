@@ -45,6 +45,10 @@ public class Ticket {
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private User owner;
 
+    @Column(length = 30)
+    private String cedula;
+
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "event_id")
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})

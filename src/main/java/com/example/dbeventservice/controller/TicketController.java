@@ -78,7 +78,8 @@ public class TicketController {
                     request.getQuantity(),
                     request.getEmail(),
                     request.getRef(),
-                    request.getPaymentMethod() // ✅ NEW
+                    request.getPaymentMethod(),
+                    request.getCedula()
             );
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -441,5 +442,7 @@ public class TicketController {
         private String email;
         private String ref;
         private String paymentMethod;
+
+        private String cedula;
     }
 }
